@@ -1,0 +1,45 @@
+.sidebar-menu-list {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+}
+
+.sidebar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.sidebar-menu-item svg {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  color: inherit;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.sidebar-menu-item span {
+  min-width: 0;
+}
+
+.sidebar-unread-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: auto;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 999px;
+  background: #dc3545;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(127, 29, 29, 0.28);
+}

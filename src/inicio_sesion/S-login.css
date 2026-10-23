@@ -1,0 +1,143 @@
+
+/* para seleccionar todos los elementos de la pagina */
+* {
+    margin: 0; /* elimina el margen de todos los elementos de la pagina */
+    padding: 0; /* elimina el relleno de todos los elementos de la pagina */
+    box-sizing: border-box; /* Hace que el tamaño indicado (width y height) ya incluya el padding y el borde, evitando que el elemento se haga más grande de lo esperado. */
+}
+
+.contenedor {
+    width: 100%; /* delimita ancho de la pantalla */
+    min-height: 100vh; /* delimita alto de la pantalla */
+    display: flex; /* display:flex; es una propiedad de CSS que permite alinear elementos en una fila o columna */
+    justify-content: center; /* centra los elementos al medio sin cambiar de posicion horizontalmente de izquierda a derecha */
+    align-items: center; /* centra los elementos al medio de todo verticalmente que es de arriba a hacia abajo */
+    padding: 24px; /* da espacio alrededor del formulario */
+    background-image: url("../assets/Fondo1.jpeg"); /* imagen de fondo del login */
+    background-size: cover; /* hace que la imagen cubra toda la pantalla */
+    background-position: center; /* centra la imagen */
+    background-repeat: no-repeat; /* evita que la imagen se repita */
+    background-attachment: fixed; /* mantiene el fondo fijo al hacer scroll */
+    font-family: arial, sans-serif; /* cambia la fuente de toda la pantalla */
+}
+
+.login {
+    width: 400px; /* ancho del contenedor del formulario */
+    padding: 40px; /* espacio interior del formulario */
+    border-radius: 20px; /* redondea las esquinas */
+    background: rgba(255, 255, 255, 0.16); /* fondo translúcido */
+    backdrop-filter: blur(16px); /* efecto de vidrio */
+    -webkit-backdrop-filter: blur(16px); /* compatibilidad en navegadores webkit */
+    border: 1px solid rgba(255, 255, 255, 0.3); /* borde suave */
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25); /* sombra del formulario */
+}
+
+.login h1{
+    font-size: 35px; /* cambia tamaño del texto */
+    color: #ffffff; /* da color a las letras */
+    text-align: center; /* hace que el texto esté centrado */
+    margin-bottom: 10px; /* da un espacio entre el titulo y los campos de entrada */
+    font-weight: 700; /* hace el texto más grueso */
+    letter-spacing: 0.5px; /* separa un poco las letras */
+}
+
+.login p{
+    color: #f1f5f9; /* da color a las letras */
+    text-align: center; /* hace que el texto esté centrado */
+    margin-bottom: 25px; /* da un espacio entre el titulo y los campos de entrada */
+    font-size: 15px; /* cambia tamaño del texto */
+}
+
+.login .texto-ayuda{
+    margin-top: -10px;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.login .registro-prompt{
+    margin-top: 25px;
+    margin-bottom: 0;
+}
+
+.login input{
+    width: 100%; /* ocupa todo el ancho del formulario */
+    padding: 15px; /* espacio interno del input */
+    font-size: 14px; /* tamaño de la fuente */
+    margin-bottom: 16px; /* espacio entre inputs */
+    border-radius: 12px; /* redondea los bordes */
+    border: 1px solid rgba(255,255,255,0.35); /* borde suave */
+    background: rgba(255, 255, 255, 0.8); /* fondo claro del input */
+    color: #1f2937; /* color del texto */
+    transition: 0.3s ease; /* efecto suave al cambiar */
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.08); /* sombra interna */
+}
+
+.login input:focus{
+    outline: none; /* elimina el borde azul del navegador */
+    border: 2px solid rgba(255,255,255,0.8); /* borde al enfocar */
+    box-shadow: 0 0 0 4px rgba(37,99,235,0.2); /* resplandor azul al enfocar */
+    background: rgba(255, 255, 255, 0.95); /* fondo más claro */
+}
+
+.code-inputs{
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.login .code-inputs input{
+    width: 100%;
+    aspect-ratio: 1;
+    min-width: 0;
+    padding: 10px 4px;
+    margin-bottom: 0;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.login label{
+    display:block; /* hace que label ocupe todo el ancho y ponga por debajo los input */
+    margin-bottom:8px; /* da margen de espacio con elementos de abajo */
+    color: #f8fafc; /* da color a las letras */
+    font-size: 15px; /* cambia tamaño del texto */
+    font-weight: 600; /* hace el texto más grueso */
+}
+
+.login button{
+    width:100%; /* ocupa todo el ancho del formulario */
+    padding:15px; /* espacio interno del botón */
+    background: linear-gradient(90deg, #2563eb, #1d4ed8); /* fondo con degradado azul */
+    color: #ffffff; /* color de las letras */
+    border-radius: 12px; /* redondea los bordes */
+    border:none; /* quita el borde por defecto */
+    cursor: pointer; /* cambia el cursor a mano */
+    font-size:16px; /* tamaño de la fuente */
+    font-weight: 600; /* hace el texto más grueso */
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease; /* efecto suave al pasar el mouse */
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25); /* sombra del botón */
+}
+
+/* efectos al pasar el mouse por encima del boton*/
+.login button:hover{
+    background: linear-gradient(90deg, #3b82f6, #2563eb); /* cambia el color cuando el mouse pasa por encima */
+    transform: translateY(-2px); /* eleva ligeramente el botón */
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35); /* sombra más fuerte */
+}
+
+.login a{
+    display:block; /* hace que el enlace ocupe su propia línea */
+    text-align:center; /* centra el enlace */
+    font-size:15px; /* tamaño de la fuente */
+    color:#e0f2fe; /* color del enlace */
+    margin-top: 12px; /* espacio superior */
+    text-decoration: none; /* quita el subrayado */
+    font-weight: 600; /* hace el texto más grueso */
+}
+
+.login a:hover{
+    color: #ffffff; /* cambia el color al pasar el mouse */
+    text-decoration: underline; /* agrega subrayado al pasar el mouse */
+}
+
