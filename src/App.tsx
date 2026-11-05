@@ -12,6 +12,7 @@ import Registro from "./inicio_sesion/Registro";
 // Importa el componente Registro para utilizarlo
 // como una de las pantallas de la aplicación.
 
+import VerificarRegistro from "./inicio_sesion/VerificarRegistro";
 import RecuperarPassword from "./inicio_sesion/RecuperarPassword";
 import VerificarCodigo from "./inicio_sesion/VerificarCodigo";
 import NuevaPassword from "./inicio_sesion/NuevaPassword";
@@ -64,6 +65,7 @@ function App() {
       {/* Cuando la ruta sea "/registro",
           React mostrará el componente Registro. */}
       <Route path="/registro" element={<Registro />} />
+      <Route path="/verificar-registro" element={<VerificarRegistro />} />
 
       <Route path="/recuperar-password" element={<RecuperarPassword />} />
       <Route path="/verificar-codigo" element={<VerificarCodigo />} />
