@@ -1,24 +1,31 @@
 export type UserRole = "administrador" | "empleado";
 
-const roleStorageKey = "biblioteca-role";
 const activeUserIdStorageKey = "biblioteca-active-user-id";
+let authenticatedRole: UserRole | null = null;
 
 export function getCurrentUserRole(): UserRole {
-  const storedRole = window.localStorage.getItem(roleStorageKey);
-  return storedRole === "empleado" ? "empleado" : "administrador";
+  return authenticatedRole ?? "empleado";
 }
 
 export function isAdministrator(): boolean {
-  return getCurrentUserRole() === "administrador";
+  return authenticatedRole === "administrador";
 }
 
 export function getActiveUserId(): number {
   const storedUserId = Number(window.localStorage.getItem(activeUserIdStorageKey));
   if (Number.isInteger(storedUserId) && storedUserId > 0) return storedUserId;
-  return getCurrentUserRole() === "empleado" ? 2 : 1;
+  return 0;
 }
 
-export function setActiveUser(userId: number, role: UserRole) {
+export function setActiveUser(userId: number, _role: UserRole) {
+  void _role;
   window.localStorage.setItem(activeUserIdStorageKey, String(userId));
-  window.localStorage.setItem(roleStorageKey, role);
+}
+
+export function setAuthenticatedProfile(_userId: string, role: UserRole) {
+  authenticatedRole = role;
+}
+
+export function clearAuthenticatedProfile() {
+  authenticatedRole = null;
 }

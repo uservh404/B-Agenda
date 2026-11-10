@@ -5,6 +5,7 @@ import App from './App'
 import { BrowserRouter } from "react-router-dom";
 import './themes.css'
 import { applyAppTheme } from './theme'
+import { AuthProvider } from './auth/AuthContext'
 
 applyAppTheme()
 
@@ -18,7 +19,9 @@ applyAppTheme()
 createRoot(document.getElementById('root')!).render(
 <StrictMode>
     <BrowserRouter>
-        <App />
+        <AuthProvider>
+            <App />
+        </AuthProvider>
     </BrowserRouter>
 </StrictMode>
 // Browser = navegador.

@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 // Routes = conjunto de rutas.
 // Route = una ruta individual.
 //
@@ -29,28 +29,61 @@ import Recursos from "./tabs/Recursos";
 import Usuarios from "./tabs/Usuarios";
 import Configuracion from "./tabs/Configuracion";
 import Notificaciones from "./tabs/Notificaciones";
-import { isAdministrator } from "./auth/permissions";
+import { useAuth } from "./auth/useAuth";
 import "./auth/S-permissions.css";
 
-function PermissionDenied() {
-  const navigate = useNavigate();
-
+function AuthStatusScreen({ title, message, action }: { title: string; message: string; action: React.ReactNode }) {
   return (
     <main className="permission-page">
-      <section className="permission-modal" role="alert" aria-labelledby="permission-title">
+      <section className="permission-modal" role="status">
         <div className="permission-icon" aria-hidden="true">🔒</div>
         <div>
-          <h1 id="permission-title">Permisos insuficientes</h1>
-          <p>No tienes los permisos suficientes para acceder a esta opción.</p>
+          <h1>{title}</h1>
+          <p>{message}</p>
         </div>
-        <button type="button" onClick={() => navigate("/principal")}>Volver al inicio</button>
+        {action}
       </section>
     </main>
   );
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
-  return isAdministrator() ? children : <PermissionDenied />;
+function AuthenticatedRoute({ children, administratorOnly = false }: { children: React.ReactNode; administratorOnly?: boolean }) {
+  const { status, profile, error, signOut } = useAuth();
+  const location = useLocation();
+
+  if (status === "loading") {
+    return (
+      <AuthStatusScreen
+        title="Comprobando acceso"
+        message="Estamos verificando tu sesión y perfil."
+        action={<span aria-live="polite">Cargando...</span>}
+      />
+    );
+  }
+
+  if (status === "unauthenticated") {
+    return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  }
+
+  if (status === "recovery") {
+    return <Navigate to="/nueva-password" replace />;
+  }
+
+  if (status === "error") {
+    return (
+      <AuthStatusScreen
+        title="No se pudo validar el acceso"
+        message={error ?? "No se pudo consultar tu perfil. El acceso permanece bloqueado."}
+        action={<button type="button" onClick={() => { void signOut(); }}>Regresar al inicio de sesión</button>}
+      />
+    );
+  }
+
+  if (administratorOnly && profile?.role !== "administrador") {
+    return <Navigate to="/principal" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 function App() {
@@ -73,20 +106,20 @@ function App() {
 
       {/* Cuando la ruta sea "/principal",
           React mostrará la pantalla principal de administración. */}
-      <Route path="/principal" element={<Principal />} />
+      <Route path="/principal" element={<AuthenticatedRoute><Principal /></AuthenticatedRoute>} />
 
       {/* Cuando la ruta sea "/anuncios",
           React mostrará la pantalla de anuncios. */}
-      <Route path="/anuncios" element={<Anuncios />} />
+      <Route path="/anuncios" element={<AuthenticatedRoute><Anuncios /></AuthenticatedRoute>} />
 
-      <Route path="/notificaciones" element={<Notificaciones />} />
+      <Route path="/notificaciones" element={<AuthenticatedRoute><Notificaciones /></AuthenticatedRoute>} />
 
       {/* Cuando la ruta sea "/recursos",
           React mostrará la pantalla de recursos. */}
-      <Route path="/recursos" element={<Recursos />} />
+      <Route path="/recursos" element={<AuthenticatedRoute><Recursos /></AuthenticatedRoute>} />
 
-      <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
-      <Route path="/configuracion" element={<Configuracion />} />
+      <Route path="/usuarios" element={<AuthenticatedRoute administratorOnly><Usuarios /></AuthenticatedRoute>} />
+      <Route path="/configuracion" element={<AuthenticatedRoute><Configuracion /></AuthenticatedRoute>} />
     </Routes>
   );
 }
