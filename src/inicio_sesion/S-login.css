@@ -141,3 +141,58 @@
     text-decoration: underline; /* agrega subrayado al pasar el mouse */
 }
 
+.login .login-mensaje {
+    margin: 12px 0 16px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.login .login-error {
+    background: rgba(127, 29, 29, 0.24);
+    border: 1px solid rgba(254, 202, 202, 0.7);
+    color: #fee2e2;
+}
+
+.login .login-exito {
+    background: rgba(20, 83, 45, 0.24);
+    border: 1px solid rgba(187, 247, 208, 0.7);
+    color: #d1fae5;
+}
+
+.login .verification-countdown {
+    margin: -4px 0 16px;
+    font-size: 15px;
+}
+
+.login .verification-countdown strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.login .verification-expired {
+    margin-top: -4px;
+}
+
+.login .login-link-button {
+    width: 100%;
+    margin-top: 12px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: #f8fafc;
+    box-shadow: none;
+}
+
+.login .login-link-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: none;
+    box-shadow: none;
+}
+
+.login button:disabled {
+    opacity: 0.7;
+    cursor: wait;
+    transform: none;
+    box-shadow: none;
+}
