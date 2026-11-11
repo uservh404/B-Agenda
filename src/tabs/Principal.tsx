@@ -1,6 +1,6 @@
 import "./S-principal.css";
 import { useEffect, useState } from "react";
-import { Eye, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EventSummaryDialog from "../components/EventSummaryDialog";
@@ -643,8 +643,8 @@ function Principal() {
                         </button>
                         {event.createdBy.id === currentUser.id && (
                           <>
-                            <button className="action-btn edit-btn" type="button" onClick={() => handleEditEvent(event)} aria-label={`Editar ${event.title}`}>
-                              ✏️
+                            <button className="action-btn edit-btn" type="button" onClick={() => handleEditEvent(event)} aria-label={`Editar evento ${event.title}`} title="Editar evento">
+                              <Pencil size={16} aria-hidden="true" />
                             </button>
                             <button className="action-btn delete-btn" type="button" onClick={() => setEventToDelete(event.id)} aria-label={`Eliminar ${event.title}`}>
                               <Trash2 size={16} aria-hidden="true" />
