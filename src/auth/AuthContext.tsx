@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 import { clearAuthenticatedProfile, setAuthenticatedProfile, type UserRole } from "./permissions";
-import { AuthContext, type AuthState, type AuthProfile } from "./auth-context";
+import { AuthContext, getEffectiveProfile, type AuthState, type AuthProfile } from "./auth-context";
 import {
   clearPasswordRecovery,
   getVerifiedRecoveryUser,
@@ -107,14 +107,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return null;
           }
 
-          return {
+          return getEffectiveProfile({
             id: data.id,
             full_name: data.full_name,
             phone: data.phone,
             role: data.role,
             can_assign_events: data.can_assign_events,
             can_publish_announcements: data.can_publish_announcements,
-          };
+          });
         } catch {
           return null;
         }

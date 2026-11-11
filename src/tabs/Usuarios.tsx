@@ -219,7 +219,9 @@ function Usuarios() {
                   </div>
                   <span className={`user-role role-${user.role}`}>{displayRole(user.role)}</span>
                   <span className="admin-event-permission">
-                    {user.can_assign_events ? "Puede asignar eventos" : "Sin permiso para asignar"}
+                    {user.role === "administrador"
+                      ? "Todos los permisos administrativos habilitados"
+                      : user.can_assign_events ? "Puede asignar eventos" : "Sin permiso para asignar"}
                   </span>
                   <div className="user-actions">
                     <button type="button" className="user-view-button" onClick={() => openUser(user)}>
@@ -268,20 +270,25 @@ function Usuarios() {
               <span>Puede asignar eventos</span>
               <input
                 type="checkbox"
-                checked={draftCanAssignEvents}
+                checked={draftRole === "administrador" || draftCanAssignEvents}
                 onChange={(event) => setDraftCanAssignEvents(event.target.checked)}
-                disabled={cannotEditSelectedUser || isSaving}
+                disabled={cannotEditSelectedUser || isSaving || draftRole === "administrador"}
               />
             </label>
             <label className="user-event-permission user-edit-permission">
               <span>Puede publicar anuncios</span>
               <input
                 type="checkbox"
-                checked={draftCanPublishAnnouncements}
+                checked={draftRole === "administrador" || draftCanPublishAnnouncements}
                 onChange={(event) => setDraftCanPublishAnnouncements(event.target.checked)}
-                disabled={cannotEditSelectedUser || isSaving}
+                disabled={cannotEditSelectedUser || isSaving || draftRole === "administrador"}
               />
             </label>
+            {draftRole === "administrador" && (
+              <p className="users-pending-note">
+                El rol de administrador habilita automáticamente todos los permisos administrativos.
+              </p>
+            )}
             {!currentUser && <p className="users-error-message">No se pudo verificar tu sesión. Los cambios están bloqueados.</p>}
             {selectedIsCurrentUser && <p className="users-error-message">No puedes modificar tu propio rol ni tus permisos.</p>}
             {actionError && <p className="users-error-message" role="alert">{actionError}</p>}

@@ -87,7 +87,10 @@ function EventSummaryDialog({ event, onClose }: EventSummaryDialogProps) {
               {workers.map((worker) => (
                 <span className="event-summary-person" key={worker.id}>
                   <UserRound size={15} aria-hidden="true" />
-                  <span><small>Participa</small><strong>{worker.name}</strong></span>
+                  <span>
+                    <small>Participa</small>
+                    <strong>{worker.name.trim() && worker.name !== "Trabajador" ? worker.name : "Nombre no disponible"}</strong>
+                  </span>
                 </span>
               ))}
               {workers.length === 0 && <span className="event-summary-personal-label">Evento personal</span>}
@@ -97,7 +100,7 @@ function EventSummaryDialog({ event, onClose }: EventSummaryDialogProps) {
           {event.reminderEnabled && event.reminderValue && (
             <section className="event-summary-reminder">
               <BellRing size={17} aria-hidden="true" />
-              <span>Aviso {event.reminderValue} {reminderLabels[reminderUnit][event.reminderValue === 1 ? 0 : 1]} antes</span>
+              <span>Anticipación configurada: {event.reminderValue} {reminderLabels[reminderUnit][event.reminderValue === 1 ? 0 : 1]}</span>
             </section>
           )}
         </div>

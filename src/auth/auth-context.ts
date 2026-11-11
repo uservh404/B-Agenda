@@ -11,6 +11,24 @@ export interface AuthProfile {
   can_publish_announcements: boolean;
 }
 
+export type AdministrativePermission = "can_assign_events" | "can_publish_announcements";
+
+export function hasAdministrativePermission(
+  profile: AuthProfile | null | undefined,
+  permission: AdministrativePermission,
+): boolean {
+  return profile?.role === "administrador" || profile?.[permission] === true;
+}
+
+export function getEffectiveProfile(profile: AuthProfile): AuthProfile {
+  if (profile.role !== "administrador") return profile;
+  return {
+    ...profile,
+    can_assign_events: true,
+    can_publish_announcements: true,
+  };
+}
+
 export interface AuthState {
   status: "loading" | "unauthenticated" | "authenticated" | "recovery" | "error";
   session: Session | null;

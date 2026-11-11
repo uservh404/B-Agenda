@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { getActiveUserId } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
+import { hasAdministrativePermission } from "../auth/auth-context";
 import { markAnnouncementsAsSeen, notifyAnnouncementsUpdated, subscribeToAnnouncementUpdates } from "../auth/announcement-reads";
 import "./S-anuncios.css";
 
@@ -40,14 +41,15 @@ function Anuncios() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [announcementToView, setAnnouncementToView] = useState<Announcement | null>(null);
   const [formData, setFormData] = useState({ title: "", content: "", category: "" });
-  const canPublish = status === "authenticated" && profile?.can_publish_announcements === true;
+  const canPublish = status === "authenticated"
+    && hasAdministrativePermission(profile, "can_publish_announcements");
   const permissionMessage = status === "loading"
     ? "Consultando tu permiso de publicación..."
     : status === "error" || (status === "authenticated" && !profile)
       ? authError ?? "No se pudo consultar tu permiso de publicación. La publicación está bloqueada."
       : status === "unauthenticated" || status === "recovery"
         ? "Inicia sesión para consultar tu permiso de publicación. La publicación está bloqueada."
-        : status === "authenticated" && profile?.can_publish_announcements === false
+        : status === "authenticated" && !hasAdministrativePermission(profile, "can_publish_announcements")
           ? "No tienes permiso para publicar anuncios."
           : null;
 

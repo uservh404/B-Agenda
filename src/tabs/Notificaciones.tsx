@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Eye, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import EventSummaryDialog from "../components/EventSummaryDialog";
-import { getActiveUserId } from "../auth/permissions";
+import { useAuth } from "../auth/useAuth";
 import {
   deleteNotificationsForUser,
   markAllNotificationsRead,
@@ -13,7 +13,6 @@ import {
   type NotificationEventDetails,
   type NotificationKind,
 } from "../auth/notifications";
-import { readUsers } from "../auth/users";
 import "./S-notificaciones.css";
 
 const notificationLabels: Record<NotificationKind, { label: string; tone: string }> = {
@@ -26,8 +25,8 @@ const notificationLabels: Record<NotificationKind, { label: string; tone: string
 };
 
 function Notificaciones() {
-  const currentUserId = getActiveUserId();
-  const currentUser = readUsers().find((user) => user.id === currentUserId);
+  const { status: authStatus, profile } = useAuth();
+  const currentUserId = profile?.id ?? "";
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
     readNotificationsForUser(currentUserId),
   );
@@ -37,14 +36,20 @@ function Notificaciones() {
   const allNotificationsSelected = notifications.length > 0 && notifications.every((notification) => selectedNotificationIds.includes(notification.id));
 
   useEffect(() => {
+    if (authStatus !== "authenticated" || !profile) {
+      queueMicrotask(() => setNotifications([]));
+      return;
+    }
     const refreshNotifications = () => {
       setNotifications(readNotificationsForUser(currentUserId));
     };
     const unsubscribe = subscribeToNotificationUpdates(refreshNotifications);
-    markAllNotificationsRead(currentUserId);
-    refreshNotifications();
+    queueMicrotask(() => {
+      markAllNotificationsRead(currentUserId);
+      refreshNotifications();
+    });
     return unsubscribe;
-  }, [currentUserId]);
+  }, [authStatus, profile, currentUserId]);
 
   const handleMarkRead = (notificationId: string) => {
     markNotificationRead(notificationId);
@@ -110,7 +115,7 @@ function Notificaciones() {
           <div>
             <span className="notifications-eyebrow">Agenda personal</span>
             <h1>Notificaciones</h1>
-            <p>{currentUser ? `Avisos para ${currentUser.name}.` : "Avisos relacionados con tus eventos y permisos."}</p>
+            <p>{profile ? `Avisos para ${profile.full_name}.` : "Los avisos disponibles aparecerán aquí."}</p>
           </div>
           {unreadCount > 0 && (
             <button type="button" className="notifications-read-all" onClick={handleMarkAllRead}>
@@ -123,7 +128,7 @@ function Notificaciones() {
           <div className="notifications-panel-heading">
             <div>
               <h2 id="notifications-list-title">Actividad reciente</h2>
-              <p>Cambios reales en tus asignaciones y permisos.</p>
+              <p>Los avisos de eventos se habilitarán en una etapa posterior.</p>
             </div>
             <span className="notifications-count">
               {notifications.length} {notifications.length === 1 ? "aviso" : "avisos"}

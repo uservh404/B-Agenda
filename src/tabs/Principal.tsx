@@ -1,50 +1,36 @@
 import "./S-principal.css";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EventSummaryDialog from "../components/EventSummaryDialog";
-import { readUsers } from "../auth/users";
-import { getActiveUserId, getCurrentUserRole } from "../auth/permissions";
-import { addNotification } from "../auth/notifications";
-
-const eventsStorageKey = "biblioteca-events";
-
-interface EventItem {
-  id: string;
-  title: string;
-  description: string;
-  startTime: string;
-  endTime: string;
-  reminderEnabled: boolean;
-  reminderValue: number;
-  reminderUnit: "minutes" | "hours" | "days" | "weeks";
-  createdBy: { id: number; name: string };
-  assignedWorkers: { id: number; name: string }[];
-  category: string;
-  date: string;
-}
-
-interface ScheduleConflict {
-  id: string;
-  personName: string;
-  eventTitle: string;
-  startTime: string;
-  endTime: string;
-  endsNextDay: boolean;
-}
+import { useAuth } from "../auth/useAuth";
+import { hasAdministrativePermission } from "../auth/auth-context";
+import {
+  cancelCalendarEvent,
+  getCalendarOperationMessage,
+  listAssignableWorkers,
+  listCalendarEvents,
+  removeCalendarChangesSubscription,
+  saveCalendarEvent,
+  subscribeToCalendarChanges,
+} from "../services/calendar";
+import type { AssignableWorker, CalendarEvent, ReminderUnit } from "../types/calendar";
 
 type EventAudienceFilter = "all" | "collaborative" | "personal";
 
-function readEvents(): EventItem[] {
-  try {
-    const storedEvents = window.localStorage.getItem(eventsStorageKey);
-    if (!storedEvents) return [];
-    const parsedEvents: unknown = JSON.parse(storedEvents);
-    return Array.isArray(parsedEvents) ? parsedEvents as EventItem[] : [];
-  } catch {
-    return [];
-  }
+const CALENDAR_LOAD_TIMEOUT_MS = 20000;
+
+function withCalendarLoadTimeout<T>(request: Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error("calendar_load_timeout")),
+      CALENDAR_LOAD_TIMEOUT_MS,
+    );
+  });
+
+  return Promise.race([request, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 function timeToMinutes(time: string): number | null {
@@ -57,21 +43,7 @@ function timeToMinutes(time: string): number | null {
   return hours * 60 + minutes;
 }
 
-function getEventInterval(date: string, startTime: string, endTime: string) {
-  const startMinutes = timeToMinutes(startTime);
-  const endMinutes = timeToMinutes(endTime);
-  if (startMinutes === null || endMinutes === null || startMinutes === endMinutes) return null;
-
-  const [year, month, day] = date.split("-").map(Number);
-  const start = new Date(year, month - 1, day, Math.floor(startMinutes / 60), startMinutes % 60);
-  const end = new Date(year, month - 1, day, Math.floor(endMinutes / 60), endMinutes % 60);
-  const endsNextDay = endMinutes < startMinutes;
-  if (endsNextDay) end.setDate(end.getDate() + 1);
-
-  return { start: start.getTime(), end: end.getTime(), endsNextDay };
-}
-
-function getEventEndDateKey(event: Pick<EventItem, "date" | "startTime" | "endTime">) {
+function getEventEndDateKey(event: Pick<CalendarEvent, "date" | "startTime" | "endTime">) {
   const startMinutes = timeToMinutes(event.startTime);
   const endMinutes = timeToMinutes(event.endTime);
   if (startMinutes === null || endMinutes === null || endMinutes >= startMinutes) return event.date;
@@ -89,6 +61,7 @@ const reminderUnitLabels = {
 } as const;
 
 function Principal() {
+  const { status: authStatus, profile, error: authError } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,54 +70,140 @@ function Principal() {
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [formError, setFormError] = useState("");
-  const [scheduleConflicts, setScheduleConflicts] = useState<ScheduleConflict[]>([]);
-  const [eventToView, setEventToView] = useState<EventItem | null>(null);
-  const [events, setEvents] = useState<EventItem[]>(readEvents);
-  const [eventIdSequence, setEventIdSequence] = useState(() =>
-    events.reduce((highestId, event) => Math.max(highestId, Number(event.id) || 0), 0) + 1,
-  );
-  const [currentUserId] = useState(getActiveUserId);
-  const [currentUserRole] = useState(getCurrentUserRole);
-  const [registeredUsers, setRegisteredUsers] = useState(readUsers);
+  const [eventToView, setEventToView] = useState<CalendarEvent | null>(null);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<AssignableWorker[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadWarning, setLoadWarning] = useState("");
+  const [realtimeWarning, setRealtimeWarning] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(false);
+  const [workerLoadError, setWorkerLoadError] = useState("");
+  const [pendingSaveConflict, setPendingSaveConflict] = useState<{ eventId: string; operationId: string } | null>(null);
+  const [pendingCancelConflict, setPendingCancelConflict] = useState<{ eventId: string; operationId: string } | null>(null);
+  const [draftEventId, setDraftEventId] = useState<string | null>(null);
+  const [pendingSaveRequest, setPendingSaveRequest] = useState<{ fingerprint: string; operationId: string } | null>(null);
+  const [pendingCancelRequest, setPendingCancelRequest] = useState<{ fingerprint: string; operationId: string } | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     startTime: "",
     endTime: "",
     reminderEnabled: false,
     reminderValue: 15,
-    reminderUnit: "minutes" as EventItem["reminderUnit"],
-    assignedWorkerIds: [] as number[],
+    reminderUnit: "minutes" as ReminderUnit,
+    assignedWorkerIds: [] as string[],
     description: "",
     category: "",
   });
   const [eventToDelete, setEventToDelete] = useState<string | null>(null);
+  const eventLoadGeneration = useRef(0);
   const eventPendingDeletion = events.find((event) => event.id === eventToDelete);
-  const currentRoleName = currentUserRole === "administrador" ? "Administrador" : "Empleado";
-  const currentUser = registeredUsers.find((user) => user.id === currentUserId) ?? registeredUsers.find((user) => user.role === currentRoleName) ?? {
-    id: currentUserRole === "administrador" ? 1 : 2,
-    name: currentUserRole === "administrador" ? "María González" : "Carlos Rodríguez",
-    role: currentRoleName,
-    canAssignEvents: currentRoleName === "Administrador",
-  };
-  const canAssignEvents = currentUser.role === "Administrador" || currentUser.canAssignEvents;
-  const assignableUsers = registeredUsers.filter((user) => user.id !== currentUser.id);
+  const currentUserId = profile?.id ?? "";
+  const canAssignEvents = authStatus === "authenticated"
+    && hasAdministrativePermission(profile, "can_assign_events");
+
+  const reloadEvents = useCallback(async (showLoading = true) => {
+    const requestGeneration = ++eventLoadGeneration.current;
+    if (!profile?.id) {
+      setEvents([]);
+      setIsLoadingEvents(false);
+      return false;
+    }
+
+    if (showLoading) setIsLoadingEvents(true);
+    setLoadError("");
+    setLoadWarning("");
+    try {
+      const result = await withCalendarLoadTimeout(listCalendarEvents());
+      if (requestGeneration !== eventLoadGeneration.current) return false;
+      setEvents(result.events);
+      if (result.profileNamesUnavailable) {
+        setLoadWarning("No fue posible cargar el nombre de todos los organizadores o participantes. Actualiza la agenda o inténtalo más tarde.");
+      }
+      return true;
+    } catch {
+      if (requestGeneration === eventLoadGeneration.current) {
+        setLoadError("No se pudo cargar la agenda. Comprueba tu conexión e inténtalo nuevamente.");
+      }
+      return false;
+    } finally {
+      if (requestGeneration === eventLoadGeneration.current) {
+        setIsLoadingEvents(false);
+      }
+    }
+  }, [profile?.id]);
 
   useEffect(() => {
-    const syncRegisteredUsers = () => setRegisteredUsers(readUsers());
-    window.addEventListener("storage", syncRegisteredUsers);
-    return () => window.removeEventListener("storage", syncRegisteredUsers);
-  }, []);
+    if (authStatus === "authenticated" && profile) {
+      let active = true;
+      let hasSubscribed = false;
+      queueMicrotask(() => {
+        if (active) void reloadEvents();
+      });
+      const channel = subscribeToCalendarChanges(
+        profile.id,
+        () => {
+          if (active) void reloadEvents(false);
+        },
+        (status) => {
+          if (!active) return;
+          if (status === "SUBSCRIBED") {
+            setRealtimeWarning("");
+            hasSubscribed = true;
+            void reloadEvents(false);
+            return;
+          }
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || (status === "CLOSED" && hasSubscribed)) {
+            setRealtimeWarning("La actualización automática de la agenda no está disponible. Actualiza la agenda manualmente.");
+          }
+        },
+      );
+      return () => {
+        active = false;
+        eventLoadGeneration.current += 1;
+        void removeCalendarChangesSubscription(channel);
+      };
+    }
+
+    eventLoadGeneration.current += 1;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setEvents([]);
+      setIsLoadingEvents(false);
+      setLoadError("");
+      setLoadWarning("");
+      setRealtimeWarning("");
+    });
+    return () => {
+      active = false;
+      eventLoadGeneration.current += 1;
+    };
+  }, [authStatus, profile, reloadEvents]);
 
   useEffect(() => {
-    window.localStorage.setItem(eventsStorageKey, JSON.stringify(events));
-    window.dispatchEvent(new Event("biblioteca-events-updated"));
-  }, [events]);
-
-  useEffect(() => {
-    const syncEvents = () => setEvents(readEvents());
-    window.addEventListener("storage", syncEvents);
-    return () => window.removeEventListener("storage", syncEvents);
-  }, []);
+    if (!modalOpen || !canAssignEvents || !profile) return;
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setIsLoadingWorkers(true);
+      setWorkerLoadError("");
+      void listAssignableWorkers(profile.id).then((workers) => {
+        if (active) setAssignableUsers(workers);
+      }).catch(() => {
+        if (active) {
+          setAssignableUsers([]);
+          setWorkerLoadError("No se pudo consultar la lista de trabajadores autorizada.");
+        }
+      }).finally(() => {
+        if (active) setIsLoadingWorkers(false);
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [modalOpen, canAssignEvents, profile]);
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
@@ -185,6 +244,12 @@ function Principal() {
     }
 
     setEditingEventId(null);
+    setDraftEventId((current) => current ?? crypto.randomUUID());
+    if (canAssignEvents) {
+      setAssignableUsers([]);
+      setIsLoadingWorkers(true);
+      setWorkerLoadError("");
+    }
     setFormData({
       title: "",
       startTime: "",
@@ -197,7 +262,6 @@ function Principal() {
       category: "",
     });
     setFormError("");
-    setScheduleConflicts([]);
     setModalOpen(true);
   };
 
@@ -205,14 +269,13 @@ function Principal() {
     setModalOpen(false);
     setEditingEventId(null);
     setFormError("");
-    setScheduleConflicts([]);
+    setIsLoadingWorkers(false);
   };
 
-  const handleSaveEvent = () => {
-    setScheduleConflicts([]);
-
+  const handleSaveEvent = async () => {
+    if (!profile || isSaving) return;
     if (!formData.title.trim()) {
-      alert("Ingresa un título para el evento.");
+      setFormError("Ingresa un título para el evento.");
       return;
     }
 
@@ -239,207 +302,100 @@ function Principal() {
       existingEvent.date !== eventDate ||
       existingEvent.startTime !== formData.startTime ||
       existingEvent.endTime !== formData.endTime;
-    const proposedInterval = getEventInterval(eventDate, formData.startTime, formData.endTime);
-    if (!proposedInterval) {
-      setFormError("Revisa las horas de inicio y finalización.");
-      return;
-    }
-
-    if (scheduleChanged && proposedInterval.start <= new Date().getTime()) {
+    const proposedStart = new Date(`${eventDate}T${formData.startTime}:00`);
+    if (scheduleChanged && proposedStart.getTime() <= Date.now()) {
       setFormError("La hora de inicio ya pasó. Elige una fecha y hora futuras para agendar el evento.");
       return;
     }
 
-    if (formData.reminderEnabled && formData.reminderValue < 1) {
+    if (formData.reminderEnabled && (!Number.isInteger(formData.reminderValue) || formData.reminderValue < 1)) {
       setFormError("La alerta debe configurarse con al menos una unidad.");
       return;
     }
 
-    const assignedWorkers = canAssignEvents
-      ? assignableUsers
-          .filter((employee) => formData.assignedWorkerIds.includes(employee.id))
-          .map(({ id, name }) => ({ id, name }))
-      : existingEvent?.assignedWorkers ?? [];
-    const participantNames = new Map<number, string>([
-      [currentUser.id, currentUser.name],
-      ...assignedWorkers.map((employee) => [employee.id, employee.name] as [number, string]),
-    ]);
-    const proposedParticipants = new Set(participantNames.keys());
-    const conflicts = events.flatMap((existingEvent) => {
-      const existingInterval = getEventInterval(existingEvent.date, existingEvent.startTime, existingEvent.endTime);
-      if (
-        existingEvent.id === editingEventId ||
-        !existingInterval ||
-        proposedInterval.start >= existingInterval.end ||
-        existingInterval.start >= proposedInterval.end
-      ) {
-        return [];
-      }
-
-      const existingParticipants = [existingEvent.createdBy, ...existingEvent.assignedWorkers];
-      return existingParticipants
-        .filter((person) => proposedParticipants.has(person.id))
-        .map((person) => ({
-          id: `${existingEvent.id}-${person.id}`,
-          personName: participantNames.get(person.id) ?? person.name,
-          eventTitle: existingEvent.title,
-          startTime: existingEvent.startTime,
-          endTime: existingEvent.endTime,
-          endsNextDay: existingInterval.endsNextDay,
-        }));
-    });
-
-    if (conflicts.length > 0) {
-      setFormError("");
-      setScheduleConflicts(conflicts);
+    const existingParticipantIds = existingEvent?.assignedWorkers.map((worker) => worker.id) ?? [];
+    const participantIdsChanged = existingParticipantIds.length !== formData.assignedWorkerIds.length
+      || existingParticipantIds.some((id) => !formData.assignedWorkerIds.includes(id));
+    if (canAssignEvents && participantIdsChanged && workerLoadError) {
+      setFormError("No se pudo verificar la lista de trabajadores. Inténtalo nuevamente.");
       return;
     }
 
     setFormError("");
-
-    if (editingEventId) {
-      const updatedEvent: EventItem = {
-        ...existingEvent!,
-        title: formData.title.trim(),
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        reminderEnabled: formData.reminderEnabled,
-        reminderValue: formData.reminderValue,
-        reminderUnit: formData.reminderUnit,
-        assignedWorkers,
-        description: formData.description.trim(),
-        category: formData.category,
-        date: eventDate,
-      };
-      const oldWorkerIds = new Set(existingEvent?.assignedWorkers.map((worker) => worker.id) ?? []);
-      const updatedWorkerIds = new Set(assignedWorkers.map((worker) => worker.id));
-      const eventChanged = existingEvent && (
-        existingEvent.title !== updatedEvent.title ||
-        existingEvent.date !== updatedEvent.date ||
-        existingEvent.startTime !== updatedEvent.startTime ||
-        existingEvent.endTime !== updatedEvent.endTime ||
-        existingEvent.description !== updatedEvent.description ||
-        existingEvent.category !== updatedEvent.category ||
-        existingEvent.reminderEnabled !== updatedEvent.reminderEnabled ||
-        existingEvent.reminderValue !== updatedEvent.reminderValue ||
-        existingEvent.reminderUnit !== updatedEvent.reminderUnit ||
-        oldWorkerIds.size !== updatedWorkerIds.size ||
-        [...oldWorkerIds].some((workerId) => !updatedWorkerIds.has(workerId))
-      );
-      const notificationEvent = {
-        id: updatedEvent.id,
-        title: updatedEvent.title,
-        date: updatedEvent.date,
-        startTime: updatedEvent.startTime,
-        endTime: updatedEvent.endTime,
-        description: updatedEvent.description,
-        category: updatedEvent.category,
-        createdBy: updatedEvent.createdBy,
-        assignedWorkers: updatedEvent.assignedWorkers,
-        reminderEnabled: updatedEvent.reminderEnabled,
-        reminderValue: updatedEvent.reminderValue,
-        reminderUnit: updatedEvent.reminderUnit,
-      };
-
-      assignedWorkers.forEach((worker) => {
-        if (!oldWorkerIds.has(worker.id)) {
-          addNotification({
-            recipientId: worker.id,
-            kind: "event_assigned",
-            title: "Te asignaron a un evento",
-            message: `${currentUser.name} te asignó al evento “${updatedEvent.title}”.`,
-            event: notificationEvent,
-          });
-        } else if (eventChanged) {
-          addNotification({
-            recipientId: worker.id,
-            kind: "event_updated",
-            title: "Evento actualizado",
-            message: `Se modificaron los detalles de “${updatedEvent.title}”.`,
-            event: notificationEvent,
-          });
-        }
-      });
-
-      existingEvent?.assignedWorkers.forEach((worker) => {
-        if (!updatedWorkerIds.has(worker.id)) {
-          addNotification({
-            recipientId: worker.id,
-            kind: "event_unassigned",
-            title: "Ya no estás asignado al evento",
-            message: `${currentUser.name} te retiró del evento “${existingEvent.title}”.`,
-            event: { ...notificationEvent, assignedWorkers: existingEvent.assignedWorkers },
-          });
-        }
-      });
-
-      setEvents((prev) =>
-        prev.map((event) =>
-          event.id === editingEventId
-            ? updatedEvent
-            : event,
-        ),
-      );
-      closeModal();
-      return;
-    }
-
-    const newEvent: EventItem = {
-      id: String(eventIdSequence),
+    setIsSaving(true);
+    const eventId = existingEvent?.id ?? draftEventId ?? crypto.randomUUID();
+    const resolvesOperationId = pendingSaveConflict?.eventId === eventId
+      ? pendingSaveConflict.operationId
+      : null;
+    const request = {
+      eventId,
+      expectedVersion: existingEvent?.version ?? 0,
       title: formData.title.trim(),
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      reminderEnabled: formData.reminderEnabled,
-      reminderValue: formData.reminderValue,
-      reminderUnit: formData.reminderUnit,
-      createdBy: { id: currentUser.id, name: currentUser.name },
-      assignedWorkers,
       description: formData.description.trim(),
       category: formData.category,
       date: eventDate,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      participantIds: canAssignEvents
+        ? (existingEvent && !participantIdsChanged ? null : formData.assignedWorkerIds)
+        : null,
+      reminderEnabled: formData.reminderEnabled,
+      reminderValue: formData.reminderEnabled ? formData.reminderValue : null,
+      reminderUnit: formData.reminderEnabled ? formData.reminderUnit : null,
+      resolvesOperationId,
     };
+    const fingerprint = JSON.stringify(request);
+    const operationId = pendingSaveRequest?.fingerprint === fingerprint
+      ? pendingSaveRequest.operationId
+      : crypto.randomUUID();
+    setDraftEventId(eventId);
+    setPendingSaveRequest({ fingerprint, operationId });
+    try {
+      const result = await saveCalendarEvent({
+        operationId,
+        ...request,
+      });
 
-    assignedWorkers.forEach((worker) => addNotification({
-      recipientId: worker.id,
-      kind: "event_assigned",
-      title: "Te asignaron a un evento",
-      message: `${currentUser.name} te asignó al evento “${newEvent.title}”.`,
-      event: {
-        id: newEvent.id,
-        title: newEvent.title,
-        date: newEvent.date,
-        startTime: newEvent.startTime,
-        endTime: newEvent.endTime,
-        description: newEvent.description,
-        category: newEvent.category,
-        createdBy: newEvent.createdBy,
-        assignedWorkers: newEvent.assignedWorkers,
-        reminderEnabled: newEvent.reminderEnabled,
-        reminderValue: newEvent.reminderValue,
-        reminderUnit: newEvent.reminderUnit,
-      },
-    }));
+      if (result.status !== "confirmed") {
+        if (result.status === "conflict") {
+          setPendingSaveConflict({ eventId, operationId });
+          if (result.code === "version_conflict") {
+            await reloadEvents();
+            setFormError("El evento cambió en otra sesión. Se actualizó la agenda; revisa los datos antes de guardar nuevamente.");
+            return;
+          }
+        }
+        setFormError(getCalendarOperationMessage(result));
+        return;
+      }
 
-    setEventIdSequence((currentSequence) => currentSequence + 1);
-    setEvents((prev) => [...prev, newEvent]);
-    closeModal();
+      setPendingSaveRequest(null);
+      setDraftEventId(null);
+      setPendingSaveConflict(null);
+      closeModal();
+      await reloadEvents();
+    } catch {
+      setFormError("No se pudo confirmar el cambio. Reintenta con los mismos datos para comprobar si se guardó.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const yearOptions = Array.from({ length: 100 }, (_, index) => 2000 + index);
 
-  const getEventDateTime = (event: EventItem) => {
+  const getEventDateTime = (event: CalendarEvent) => {
     const [eventYear, eventMonth, eventDay] = event.date.split("-").map(Number);
     const [hours = 23, minutes = 59] = event.startTime.split(":").map(Number);
     return new Date(eventYear, eventMonth - 1, eventDay, hours, minutes).getTime();
   };
 
   const eventsForCurrentUser = events.filter((event) =>
-    event.createdBy.id === currentUser.id || event.assignedWorkers.some((employee) => employee.id === currentUser.id),
+    event.createdBy.id === currentUserId || event.assignedWorkers.some((employee) => employee.id === currentUserId),
   );
   const sortedEvents = [...eventsForCurrentUser].sort((a, b) => getEventDateTime(a) - getEventDateTime(b));
   const eventsByAudience = sortedEvents.filter((event) => {
     if (eventAudienceFilter === "collaborative") return event.assignedWorkers.length > 0;
-    if (eventAudienceFilter === "personal") return event.createdBy.id === currentUser.id && event.assignedWorkers.length === 0;
+    if (eventAudienceFilter === "personal") return event.createdBy.id === currentUserId && event.assignedWorkers.length === 0;
     return true;
   });
   const filteredEvents = [...eventsByAudience]
@@ -456,7 +412,7 @@ function Principal() {
   const eventCounts = {
     all: sortedEvents.length,
     collaborative: sortedEvents.filter((event) => event.assignedWorkers.length > 0).length,
-    personal: sortedEvents.filter((event) => event.createdBy.id === currentUser.id && event.assignedWorkers.length === 0).length,
+    personal: sortedEvents.filter((event) => event.createdBy.id === currentUserId && event.assignedWorkers.length === 0).length,
   };
 
   const formatEventDate = (eventDate: string) => {
@@ -477,7 +433,7 @@ function Principal() {
     });
   };
 
-  const eventEndsNextDay = (event: Pick<EventItem, "startTime" | "endTime">) => {
+  const eventEndsNextDay = (event: Pick<CalendarEvent, "startTime" | "endTime">) => {
     const startMinutes = timeToMinutes(event.startTime);
     const endMinutes = timeToMinutes(event.endTime);
     return startMinutes !== null && endMinutes !== null && endMinutes < startMinutes;
@@ -505,8 +461,13 @@ function Principal() {
     return eventsByAudience.some((event) => event.date === currentDateKey || getEventEndDateKey(event) === currentDateKey);
   };
 
-  const handleEditEvent = (event: EventItem) => {
+  const handleEditEvent = (event: CalendarEvent) => {
     setEditingEventId(event.id);
+    if (canAssignEvents) {
+      setAssignableUsers([]);
+      setIsLoadingWorkers(true);
+      setWorkerLoadError("");
+    }
     setFormData({
       title: event.title,
       startTime: event.startTime,
@@ -522,9 +483,51 @@ function Principal() {
     setModalOpen(true);
   };
 
-  const handleDeleteEvent = (eventId: string) => {
-    setEvents((prev) => prev.filter((event) => event.id !== eventId));
-    setEventToDelete(null);
+  const handleDeleteEvent = async (event: CalendarEvent) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setLoadError("");
+    try {
+      const request = {
+        eventId: event.id,
+        expectedVersion: event.version,
+        resolvesOperationId: pendingCancelConflict?.eventId === event.id
+          ? pendingCancelConflict.operationId
+          : null,
+      };
+      const fingerprint = JSON.stringify(request);
+      const operationId = pendingCancelRequest?.fingerprint === fingerprint
+        ? pendingCancelRequest.operationId
+        : crypto.randomUUID();
+      setPendingCancelRequest({ fingerprint, operationId });
+      const result = await cancelCalendarEvent(
+        operationId,
+        request.eventId,
+        request.expectedVersion,
+        request.resolvesOperationId,
+      );
+      if (result.status !== "confirmed") {
+        if (result.status === "conflict") {
+          setPendingCancelConflict({ eventId: event.id, operationId });
+          if (result.code === "version_conflict") {
+            await reloadEvents();
+            setLoadError(getCalendarOperationMessage(result));
+          } else {
+            setLoadError(getCalendarOperationMessage(result));
+          }
+        }
+        setPendingCancelRequest({ fingerprint, operationId });
+        return;
+      }
+      setPendingCancelRequest(null);
+      setPendingCancelConflict(null);
+      setEventToDelete(null);
+      await reloadEvents();
+    } catch {
+      setLoadError("No se pudo cancelar el evento. Comprueba tu conexión e inténtalo nuevamente.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -588,8 +591,15 @@ function Principal() {
             </div>
 
             <p className="welcome-subtitle">Aquí aparecerán tus eventos programados.</p>
+            {loadError && <p className="event-form-error" role="alert">{loadError}</p>}
+            {loadWarning && <p className="event-form-error" role="alert">{loadWarning}</p>}
+            {realtimeWarning && <p className="event-form-error" role="status">{realtimeWarning}</p>}
 
-            {filteredEvents.length === 0 ? (
+            {isLoadingEvents ? (
+              <div className="empty-events"><p>Cargando agenda...</p></div>
+            ) : loadError && events.length === 0 ? (
+              <div className="empty-events"><p>No se pudo mostrar la agenda.</p></div>
+            ) : filteredEvents.length === 0 ? (
               <div className="empty-events">
                 <p>No hay eventos programados con este filtro.</p>
               </div>
@@ -611,7 +621,7 @@ function Principal() {
                     </p>
                     {event.reminderEnabled && (
                       <span className="event-reminder-pill">
-                        Aviso {event.reminderValue} {reminderUnitLabels[event.reminderUnit][event.reminderValue === 1 ? 0 : 1]} antes
+                        Anticipación: {event.reminderValue} {reminderUnitLabels[event.reminderUnit][event.reminderValue === 1 ? 0 : 1]}
                       </span>
                     )}
 
@@ -641,12 +651,12 @@ function Principal() {
                         <button className="action-btn summary-btn" type="button" onClick={() => setEventToView(event)} aria-label={`Ver resumen de ${event.title}`} title="Ver resumen">
                           <Eye size={16} aria-hidden="true" />
                         </button>
-                        {event.createdBy.id === currentUser.id && (
+                        {event.createdBy.id === currentUserId && (
                           <>
                             <button className="action-btn edit-btn" type="button" onClick={() => handleEditEvent(event)} aria-label={`Editar evento ${event.title}`} title="Editar evento">
                               <Pencil size={16} aria-hidden="true" />
                             </button>
-                            <button className="action-btn delete-btn" type="button" onClick={() => setEventToDelete(event.id)} aria-label={`Eliminar ${event.title}`}>
+                            <button className="action-btn delete-btn" type="button" disabled={isSaving} onClick={() => setEventToDelete(event.id)} aria-label={`Eliminar ${event.title}`}>
                               <Trash2 size={16} aria-hidden="true" />
                             </button>
                           </>
@@ -784,7 +794,6 @@ function Principal() {
                         setSelectedDate(new Date(dateYear, dateMonth - 1, dateDay));
                       }
                       setFormError("");
-                      setScheduleConflicts([]);
                     }}
                   />
                 </div>
@@ -816,7 +825,6 @@ function Principal() {
                       onChange={(event) => {
                         setFormData({ ...formData, startTime: event.target.value });
                         setFormError("");
-                        setScheduleConflicts([]);
                       }}
                     />
                   </div>
@@ -832,7 +840,6 @@ function Principal() {
                       onChange={(event) => {
                         setFormData({ ...formData, endTime: event.target.value });
                         setFormError("");
-                        setScheduleConflicts([]);
                       }}
                     />
                   </div>
@@ -849,8 +856,12 @@ function Principal() {
                   </div>
                   <span className="assignees-count">{formData.assignedWorkerIds.length}</span>
                 </div>
-                {assignableUsers.length === 0 ? (
-                  <p className="assignees-empty">No hay empleados registrados para asignar.</p>
+                {isLoadingWorkers ? (
+                  <p className="assignees-empty">Cargando trabajadores...</p>
+                ) : workerLoadError ? (
+                  <p className="assignees-empty" role="alert">{workerLoadError}</p>
+                ) : assignableUsers.length === 0 ? (
+                  <p className="assignees-empty">No hay usuarios registrados para asignar.</p>
                 ) : (
                   <div className="assignees-list" role="group" aria-label="Trabajadores disponibles">
                     {assignableUsers.map((assignableUser) => {
@@ -867,33 +878,39 @@ function Principal() {
                                   ? current.assignedWorkerIds.filter((id) => id !== assignableUser.id)
                                   : [...current.assignedWorkerIds, assignableUser.id],
                               }));
-                              setScheduleConflicts([]);
                             }}
                           />
                           <span className="assignee-avatar" aria-hidden="true">{assignableUser.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span>
                           <span className="assignee-information">
                             <strong>{assignableUser.name}</strong>
-                            <small>{assignableUser.email}</small>
                           </span>
-                          <span className="assignee-role">{assignableUser.role}</span>
+                          <span className="assignee-role">
+                            {assignableUser.role === "administrador" ? "Administrador" : "Empleado"}
+                          </span>
                         </label>
                       );
                     })}
                   </div>
                 )}
               </section>
-              ) : (
+              ) : authStatus === "authenticated" && profile ? (
                 <div className="personal-event-note">
                   <span className="personal-event-note-dot" aria-hidden="true" />
-                  <p>Este evento será personal y solo aparecerá en tu agenda.</p>
+                  <p>{editingEventId
+                    ? "Los participantes actuales se conservarán."
+                    : "Este evento será personal y solo aparecerá en tu agenda."}</p>
                 </div>
+              ) : (
+                <p className="event-form-error" role="alert">
+                  {authError ?? "No se pudo verificar tu perfil y permiso. No puedes asignar trabajadores por ahora."}
+                </p>
               )}
 
               <section className="reminder-group" aria-labelledby="reminder-title">
                 <div className="reminder-heading">
                   <div>
                     <h4 id="reminder-title">Alerta</h4>
-                    <p>Recibir un aviso antes del evento</p>
+                    <p>Las notificaciones automáticas estarán disponibles más adelante.</p>
                   </div>
                   <button
                     className={`reminder-switch ${formData.reminderEnabled ? "enabled" : ""}`}
@@ -922,7 +939,7 @@ function Principal() {
                       aria-label="Unidad de tiempo de la alerta"
                       value={formData.reminderUnit}
                       disabled={!formData.reminderEnabled}
-                      onChange={(event) => setFormData({ ...formData, reminderUnit: event.target.value as EventItem["reminderUnit"] })}
+                      onChange={(event) => setFormData({ ...formData, reminderUnit: event.target.value as ReminderUnit })}
                     >
                       <option value="minutes">minutos antes</option>
                       <option value="hours">horas antes</option>
@@ -934,33 +951,6 @@ function Principal() {
               </section>
 
               {formError && <p className="event-form-error" role="alert">{formError}</p>}
-
-              {scheduleConflicts.length > 0 && (
-                <section className="schedule-conflict-alert" role="alert" aria-labelledby="schedule-conflict-title">
-                  <div className="schedule-conflict-heading">
-                    <span className="schedule-conflict-icon" aria-hidden="true">!</span>
-                    <div>
-                      <h4 id="schedule-conflict-title">No se puede asignar este horario</h4>
-                      <p>Estas personas ya tienen un evento que coincide con este horario:</p>
-                    </div>
-                  </div>
-                  <ul className="schedule-conflict-list">
-                    {scheduleConflicts.map((conflict) => (
-                      <li key={conflict.id}>
-                        <div>
-                          <strong>{conflict.personName}</strong>
-                          <span>{conflict.eventTitle}</span>
-                        </div>
-                        <time>
-                          {formatEventTime(conflict.startTime)} - {formatEventTime(conflict.endTime)}
-                          {conflict.endsNextDay && <span> · día siguiente</span>}
-                        </time>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="schedule-conflict-hint">Cambia el horario o la asignación para poder guardar.</p>
-                </section>
-              )}
 
               <div className="form-group">
                 <label htmlFor="event-category">Categoría</label>
@@ -989,15 +979,15 @@ function Principal() {
                 <button className="btn-cancel" type="button" onClick={closeModal}>
                   Cancelar
                 </button>
-                <button className="btn-save" type="submit">
-                  Guardar evento
+                <button className="btn-save" type="submit" disabled={isSaving || isLoadingWorkers}>
+                  {isSaving ? "Guardando..." : "Guardar evento"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      {eventPendingDeletion && <ConfirmDialog title="Eliminar evento" message={`¿Deseas eliminar “${eventPendingDeletion.title}”? Esta acción no se puede deshacer.`} onCancel={() => setEventToDelete(null)} onConfirm={() => handleDeleteEvent(eventPendingDeletion.id)} />}
+      {eventPendingDeletion && <ConfirmDialog title="Eliminar evento" message={`¿Deseas eliminar “${eventPendingDeletion.title}”? Esta acción no se puede deshacer.`} onCancel={() => setEventToDelete(null)} onConfirm={() => { void handleDeleteEvent(eventPendingDeletion); }} />}
       {eventToView && <EventSummaryDialog event={eventToView} onClose={() => setEventToView(null)} />}
     </div>
   );
