@@ -764,13 +764,32 @@ function Principal() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
-              <h3>Nuevo evento</h3>
+              <h3>{editingEventId ? "Editar evento" : "Nuevo evento"}</h3>
               <button className="modal-close" type="button" onClick={closeModal}>
                 ×
               </button>
             </div>
 
             <form className="modal-body" autoComplete="off" onSubmit={(event) => { event.preventDefault(); handleSaveEvent(); }}>
+              {editingEventId && (
+                <div className="form-group">
+                  <label htmlFor="event-date">Fecha del evento</label>
+                  <input
+                    id="event-date"
+                    type="date"
+                    value={formatDateKey(selectedDate)}
+                    onChange={(event) => {
+                      const [dateYear, dateMonth, dateDay] = event.target.value.split("-").map(Number);
+                      if (dateYear && dateMonth && dateDay) {
+                        setSelectedDate(new Date(dateYear, dateMonth - 1, dateDay));
+                      }
+                      setFormError("");
+                      setScheduleConflicts([]);
+                    }}
+                  />
+                </div>
+              )}
+
               <div className="form-group">
                 <label htmlFor="event-title">Título del evento</label>
                 <input
