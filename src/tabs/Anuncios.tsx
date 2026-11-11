@@ -3,8 +3,8 @@ import { CalendarDays, Eye, Megaphone, MessageSquareText, Trash2, X } from "luci
 import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { getActiveUserId } from "../auth/permissions";
+import { useAuth } from "../auth/useAuth";
 import { markAnnouncementsAsSeen, notifyAnnouncementsUpdated, subscribeToAnnouncementUpdates } from "../auth/announcement-reads";
-import { readUsers } from "../auth/users";
 import "./S-anuncios.css";
 
 interface Announcement {
@@ -17,8 +17,6 @@ interface Announcement {
 }
 
 const announcementsStorageKey = "biblioteca-announcements";
-const announcementPermissionsStorageKey = "biblioteca-announcement-permissions";
-const employees = ["Carlos Rodríguez"];
 
 function readAnnouncements(): Announcement[] {
   try {
@@ -29,23 +27,12 @@ function readAnnouncements(): Announcement[] {
   }
 }
 
-function readAnnouncementPermissions(): string[] {
-  try {
-    const storedPermissions = window.localStorage.getItem(announcementPermissionsStorageKey);
-    return storedPermissions ? JSON.parse(storedPermissions) as string[] : [];
-  } catch {
-    return [];
-  }
-}
-
 function Anuncios() {
-  const administrator = window.localStorage.getItem("biblioteca-role") !== "empleado";
+  const { status, profile, error: authError } = useAuth();
+  const administrator = profile?.role === "administrador";
   const activeUserId = getActiveUserId();
-  const currentUserName = readUsers().find((user) => user.id === activeUserId)?.name ?? (administrator ? "María González" : "Carlos Rodríguez");
   const [announcements, setAnnouncements] = useState<Announcement[]>(readAnnouncements);
-  const [permittedEmployees, setPermittedEmployees] = useState<string[]>(readAnnouncementPermissions);
   const [formOpen, setFormOpen] = useState(false);
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [saved, setSaved] = useState(false);
   const [actionMessage, setActionMessage] = useState("El anuncio se publicó correctamente.");
@@ -53,7 +40,16 @@ function Anuncios() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [announcementToView, setAnnouncementToView] = useState<Announcement | null>(null);
   const [formData, setFormData] = useState({ title: "", content: "", category: "" });
-  const canPublish = administrator || permittedEmployees.includes(currentUserName);
+  const canPublish = status === "authenticated" && profile?.can_publish_announcements === true;
+  const permissionMessage = status === "loading"
+    ? "Consultando tu permiso de publicación..."
+    : status === "error" || (status === "authenticated" && !profile)
+      ? authError ?? "No se pudo consultar tu permiso de publicación. La publicación está bloqueada."
+      : status === "unauthenticated" || status === "recovery"
+        ? "Inicia sesión para consultar tu permiso de publicación. La publicación está bloqueada."
+        : status === "authenticated" && profile?.can_publish_announcements === false
+          ? "No tienes permiso para publicar anuncios."
+          : null;
 
   const resetAnnouncementForm = () => {
     setFormData({ title: "", content: "", category: "" });
@@ -74,6 +70,12 @@ function Anuncios() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canPublish) {
+      setActionMessage("No tienes permiso para publicar anuncios.");
+      setSaved(true);
+      return;
+    }
+
     const announcement: Announcement = {
       id: Date.now(),
       title: formData.title.trim(),
@@ -91,14 +93,6 @@ function Anuncios() {
     setFormOpen(false);
     setActionMessage("El anuncio se publicó correctamente.");
     setSaved(true);
-  };
-
-  const handlePermissionChange = (employee: string) => {
-    const updatedPermissions = permittedEmployees.includes(employee)
-      ? permittedEmployees.filter((name) => name !== employee)
-      : [...permittedEmployees, employee];
-    setPermittedEmployees(updatedPermissions);
-    window.localStorage.setItem(announcementPermissionsStorageKey, JSON.stringify(updatedPermissions));
   };
 
   const filteredAnnouncements = announcements.filter((announcement) => {
@@ -140,11 +134,11 @@ function Anuncios() {
             <p>Información importante y novedades para toda la comunidad.</p>
           </div>
           <div className="announcement-header-actions">
-            {administrator && <button type="button" className="permissions-button" onClick={() => setPermissionsOpen(true)} title="Administrar permisos"><span aria-hidden="true">♙</span><span>Permisos</span></button>}
             {canPublish && <button type="button" className="new-announcement-button" onClick={toggleAnnouncementForm}>{formOpen ? "Cerrar" : "+ Crear anuncio"}</button>}
           </div>
         </header>
 
+        {permissionMessage && <p className="announcement-permission-error" role="alert">{permissionMessage}</p>}
         {saved && <p className="announcement-success" role="status">✓ {actionMessage}</p>}
 
         {canPublish && formOpen && (
@@ -211,26 +205,6 @@ function Anuncios() {
         </section>
       </main>
 
-      {permissionsOpen && (
-        <div className="permissions-backdrop" onClick={() => setPermissionsOpen(false)}>
-          <section className="permissions-modal" role="dialog" aria-modal="true" aria-labelledby="permissions-title" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="permissions-close" onClick={() => setPermissionsOpen(false)} aria-label="Cerrar permisos">✕</button>
-            <div className="permissions-modal-icon" aria-hidden="true">♙</div>
-            <span className="announcements-eyebrow">Administración</span>
-            <h2 id="permissions-title">Permisos de publicación</h2>
-            <p>Elige de forma individual qué empleado puede crear anuncios.</p>
-            <div className="employee-permission-list">
-              {employees.map((employee) => (
-                <label className="employee-permission" key={employee}>
-                  <span><strong>{employee}</strong><small>Empleado</small></span>
-                  <input type="checkbox" checked={permittedEmployees.includes(employee)} onChange={() => handlePermissionChange(employee)} />
-                </label>
-              ))}
-            </div>
-            <button type="button" className="permissions-done-button" onClick={() => setPermissionsOpen(false)}>Listo</button>
-          </section>
-        </div>
-      )}
       {announcementToView && (
         <div className="announcement-summary-backdrop" onClick={() => setAnnouncementToView(null)}>
           <section className="announcement-summary-dialog" role="dialog" aria-modal="true" aria-labelledby="announcement-summary-title" onClick={(event) => event.stopPropagation()}>

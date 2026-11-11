@@ -148,7 +148,7 @@ function Notificaciones() {
             <div className="notifications-empty">
               <span className="notifications-empty-mark" aria-hidden="true">✓</span>
               <h3>No tienes notificaciones</h3>
-              <p>Tus notificaciones apareceran aqui.</p>
+              <p>Tus notificaciones aparecerán aquí.</p>
             </div>
           ) : (
             <div className="notifications-list">

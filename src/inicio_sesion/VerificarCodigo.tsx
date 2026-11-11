@@ -121,7 +121,7 @@ function VerificarCodigo() {
       if (resendError) {
         const isRateLimited = resendError.status === 429 || /rate|too many|limit/i.test(resendError.message);
         setError(isRateLimited
-          ? "Supabase limitó los reenvíos. Espera antes de volver a intentarlo."
+          ? "No puedes solicitar otro código todavía. Espera un momento e inténtalo nuevamente."
           : "No se pudo reenviar el código. Inténtalo nuevamente más tarde.");
         return;
       }

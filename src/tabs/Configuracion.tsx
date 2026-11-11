@@ -107,9 +107,9 @@ function Configuracion() {
           {verificationOpen ? (
             <section className="profile-verification" aria-labelledby="profile-verification-title">
               <div className="profile-verification-icon" aria-hidden="true"><MailCheck size={30} strokeWidth={1.8} /></div>
-              <span className="settings-eyebrow">Verificación de correo</span>
+              <span className="settings-eyebrow">Vista previa</span>
               <h2 id="profile-verification-title">Confirma tus cambios</h2>
-              <p>Te enviamos un código de verificación a:</p>
+              <p>Esta vista previa no envía un código real. Para continuar, ingresa seis dígitos.</p>
               <strong className="profile-verification-email">{draftEmail}</strong>
 
               <form className="profile-verification-form" onSubmit={handleVerificationSubmit}>
@@ -130,7 +130,7 @@ function Configuracion() {
                   aria-describedby="profile-verification-note"
                 />
                 <p id="profile-verification-note" className="profile-verification-note">
-                  Revisa tu bandeja de entrada o la carpeta de spam. Ingresa el código de seis dígitos para confirmar los cambios.
+                  Ingresa cualquier código de seis dígitos para confirmar la vista previa de los cambios.
                 </p>
                 {verificationNotice && <p className="profile-verification-notice" role="status">{verificationNotice}</p>}
                 <div className="profile-verification-actions">

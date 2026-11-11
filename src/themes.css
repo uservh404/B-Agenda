@@ -205,7 +205,6 @@ html[data-theme="claro"] .calendar-day.today:not(.active) { color: #166534; }
 html[data-theme="claro"] .filter-count { background: rgba(37, 99, 235, 0.1); color: #1e40af; }
 
 html[data-theme="claro"] .modal-content,
-html[data-theme="claro"] .permissions-modal,
 html[data-theme="claro"] .user-modal,
 html[data-theme="claro"] .resource-modal {
   border-color: rgba(71, 85, 105, 0.2);
@@ -218,9 +217,7 @@ html[data-theme="claro"] .modal-footer { border-color: rgba(71, 85, 105, 0.16); 
 html[data-theme="claro"] .modal-header h3,
 html[data-theme="claro"] .modal-close,
 html[data-theme="claro"] .user-modal h2,
-html[data-theme="claro"] .user-modal p,
-html[data-theme="claro"] .permissions-modal h2,
-html[data-theme="claro"] .permissions-modal > p { color: #1e293b; }
+html[data-theme="claro"] .user-modal p { color: #1e293b; }
 
 html[data-theme="salvia"] .welcome-card,
 html[data-theme="salvia"] .calendar-card,
@@ -269,14 +266,12 @@ html[data-theme="grafito"] .calendar-day.active { background: #536b65; }
 html[data-theme="grafito"] .calendar-day.today:not(.active) { border-color: #78b89a; }
 
 html[data-theme="salvia"] .modal-content,
-html[data-theme="salvia"] .permissions-modal,
 html[data-theme="salvia"] .user-modal,
 html[data-theme="salvia"] .resource-modal,
 html[data-theme="salvia"] .filter-menu,
 html[data-theme="salvia"] .year-dropdown { border-color: rgba(187, 211, 191, 0.22); background: rgba(28, 48, 38, 0.97); }
 
 html[data-theme="grafito"] .modal-content,
-html[data-theme="grafito"] .permissions-modal,
 html[data-theme="grafito"] .user-modal,
 html[data-theme="grafito"] .resource-modal,
 html[data-theme="grafito"] .filter-menu,
@@ -285,14 +280,12 @@ html[data-theme="grafito"] .year-dropdown { border-color: rgba(203, 213, 210, 0.
 html[data-theme="salvia"] .filter-trigger,
 html[data-theme="salvia"] .btn-save,
 html[data-theme="salvia"] .new-announcement-button,
-html[data-theme="salvia"] .permissions-done-button,
 html[data-theme="salvia"] .settings-form button,
 html[data-theme="salvia"] .add-resource-btn { background: #527c63; }
 
 html[data-theme="grafito"] .filter-trigger,
 html[data-theme="grafito"] .btn-save,
 html[data-theme="grafito"] .new-announcement-button,
-html[data-theme="grafito"] .permissions-done-button,
 html[data-theme="grafito"] .settings-form button,
 html[data-theme="grafito"] .add-resource-btn { background: #536b65; }
 
@@ -393,9 +386,6 @@ html[data-theme="claro"] .announcement-field-label { color: #1d4ed8; }
 html[data-theme="claro"] .announcement-selection-bar { border-color: rgba(71, 85, 105, 0.16); }
 html[data-theme="claro"] .announcement-form-icon,
 html[data-theme="claro"] .announcements-empty svg { color: #1d4ed8; }
-html[data-theme="claro"] .permissions-modal-icon { background: #dbeafe; color: #1e40af; }
-html[data-theme="claro"] .permissions-close { color: #334155; }
-
 html[data-theme="claro"] .type-blue,
 html[data-theme="claro"] .status-blue { border-color: #bfdbfe; background: #dbeafe; color: #1e40af; }
 html[data-theme="claro"] .type-amber,
@@ -429,7 +419,6 @@ html[data-theme="claro"] .user-view-button,
 html[data-theme="claro"] .user-delete-button,
 html[data-theme="claro"] .sort-users-button,
 html[data-theme="claro"] .new-announcement-button,
-html[data-theme="claro"] .permissions-done-button,
 html[data-theme="claro"] .settings-form-actions button,
 html[data-theme="claro"] .primary-btn,
 html[data-theme="claro"] .btn-save { color: #ffffff; }
@@ -455,14 +444,6 @@ html[data-theme="claro"] .user-delete-button,
 html[data-theme="claro"] .modal-delete { background: #b91c1c; }
 html[data-theme="claro"] .settings-success { color: #166534; }
 
-html[data-theme="claro"] .permissions-button {
-  border-color: #d97706;
-  background: #fef3c7;
-  color: #78350f;
-}
-
-html[data-theme="claro"] .permissions-button:hover { background: #fde68a; }
-html[data-theme="claro"] .permissions-button span:first-child { background: #fde68a; color: #78350f; }
 html[data-theme="claro"] .announcement-form,
 html[data-theme="claro"] .announcements-panel { background: rgba(255, 255, 255, 0.98); }
 html[data-theme="claro"] .resource-card,
@@ -471,8 +452,6 @@ html[data-theme="claro"] .notification-item,
 html[data-theme="claro"] .user-row { background: #f8fafc; }
 html[data-theme="claro"] .notification-item.is-unread { background: #eff6ff; }
 html[data-theme="claro"] .resource-notes-box { background: #f1f5f9; }
-html[data-theme="claro"] .announcement-permissions { background: #fffbeb; }
-
 html[data-theme="claro"] .confirm-dialog {
   border-color: rgba(71, 85, 105, 0.2);
   background: #ffffff;
@@ -536,11 +515,6 @@ html[data-theme="claro"] .delete-announcements-button:disabled { border-color: #
 html[data-theme="claro"] .announcement-priority.priority-importante { border-color: #fca5a5; background: #fee2e2; color: #991b1b; }
 html[data-theme="claro"] .announcement-priority.priority-general { border-color: #bfdbfe; background: #dbeafe; color: #1e40af; }
 html[data-theme="claro"] .announcement-priority.priority-informativo { border-color: #86efac; background: #dcfce7; color: #166534; }
-html[data-theme="claro"] .announcement-permissions { border-color: #fcd34d; background: #fffbeb; }
-html[data-theme="claro"] .announcement-permissions h2,
-html[data-theme="claro"] .announcement-permissions p { color: #334155; }
-html[data-theme="claro"] .employee-permission { border-color: rgba(71, 85, 105, 0.2); background: #f1f5f9; color: #1e293b; }
-html[data-theme="claro"] .employee-permission small { color: #64748b; }
 html[data-theme="claro"] .announcements-empty { border-color: rgba(71, 85, 105, 0.24); }
 html[data-theme="claro"] .announcement-card time { color: #64748b; }
 html[data-theme="claro"] .recursos-header h1,

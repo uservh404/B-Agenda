@@ -53,7 +53,11 @@ function Registro() {
         });
 
         if (signUpError) {
-            setError(signUpError.message || "No se pudo completar el registro.");
+            console.error("No se pudo completar el registro.", {
+                code: signUpError.code,
+                status: signUpError.status,
+            });
+            setError("No se pudo completar el registro. Revisa tus datos e inténtalo nuevamente.");
             setIsSubmitting(false);
             return;
         }

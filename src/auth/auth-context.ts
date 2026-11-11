@@ -8,6 +8,7 @@ export interface AuthProfile {
   phone: string | null;
   role: UserRole;
   can_assign_events: boolean;
+  can_publish_announcements: boolean;
 }
 
 export interface AuthState {

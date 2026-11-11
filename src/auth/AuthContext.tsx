@@ -93,11 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const { data, error } = await supabase
             .from("profiles")
-            .select("id, full_name, phone, role, can_assign_events")
+            .select("id, full_name, phone, role, can_assign_events, can_publish_announcements")
             .eq("id", session.user.id)
             .maybeSingle();
 
-          if (error || !data || !isUserRole(data.role)) {
+          if (
+            error
+            || !data
+            || !isUserRole(data.role)
+            || typeof data.can_assign_events !== "boolean"
+            || typeof data.can_publish_announcements !== "boolean"
+          ) {
             return null;
           }
 
@@ -107,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             phone: data.phone,
             role: data.role,
             can_assign_events: data.can_assign_events,
+            can_publish_announcements: data.can_publish_announcements,
           };
         } catch {
           return null;

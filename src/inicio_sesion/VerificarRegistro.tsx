@@ -110,7 +110,7 @@ function VerificarRegistro() {
       if (resendError) {
         const isRateLimited = /rate|too many|seconds|limit/i.test(resendError.message);
         setError(isRateLimited
-          ? "Supabase limitó los reenvíos. Espera un momento antes de volver a intentarlo."
+          ? "No puedes solicitar otro código todavía. Espera un momento e inténtalo nuevamente."
           : "No se pudo reenviar el código. Inténtalo nuevamente más tarde.");
         return;
       }
