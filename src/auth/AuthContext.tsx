@@ -22,11 +22,21 @@ function isUserRole(role: unknown): role is UserRole {
   return role === "administrador" || role === "empleado";
 }
 
+function isNetworkUnavailable(error: unknown) {
+  if (!window.navigator.onLine) return true;
+  const message = error instanceof Error
+    ? error.message
+    : error && typeof error === "object" && "message" in error
+      ? String(error.message)
+      : "";
+  return /failed to fetch|fetch failed|networkerror|network request failed|connection refused|timed out/i.test(message);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>(initialState);
   const requestId = useRef(0);
   const profileCache = useRef(new Map<string, AuthProfile>());
-  const profileRequests = useRef(new Map<string, Promise<AuthProfile | null>>());
+  const profileRequests = useRef(new Map<string, Promise<{ profile: AuthProfile | null; unavailableOffline: boolean }>>());
 
   const processSession = useCallback(async (session: Session | null, isRecoveryEvent = false): Promise<AuthState> => {
     const currentRequestId = ++requestId.current;
@@ -97,32 +107,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq("id", session.user.id)
             .maybeSingle();
 
+          if (error) {
+            return { profile: null, unavailableOffline: isNetworkUnavailable(error) };
+          }
+
           if (
-            error
-            || !data
+            !data
             || !isUserRole(data.role)
             || typeof data.can_assign_events !== "boolean"
             || typeof data.can_publish_announcements !== "boolean"
           ) {
-            return null;
+            return { profile: null, unavailableOffline: false };
           }
 
-          return getEffectiveProfile({
-            id: data.id,
-            full_name: data.full_name,
-            phone: data.phone,
-            role: data.role,
-            can_assign_events: data.can_assign_events,
-            can_publish_announcements: data.can_publish_announcements,
-          });
-        } catch {
-          return null;
+          return {
+            profile: getEffectiveProfile({
+              id: data.id,
+              full_name: data.full_name,
+              phone: data.phone,
+              role: data.role,
+              can_assign_events: data.can_assign_events,
+              can_publish_announcements: data.can_publish_announcements,
+            }),
+            unavailableOffline: false,
+          };
+        } catch (error) {
+          return { profile: null, unavailableOffline: isNetworkUnavailable(error) };
         }
       })();
       profileRequests.current.set(session.user.id, profileRequest);
     }
 
-    const profile = await profileRequest;
+    const profileResult = await profileRequest;
     profileRequests.current.delete(session.user.id);
 
     if (currentRequestId !== requestId.current) {
@@ -135,7 +151,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    if (!profile) {
+    if (!profileResult.profile && profileResult.unavailableOffline) {
+      clearAuthenticatedProfile();
+      const nextState: AuthState = {
+        status: "offline",
+        session,
+        user: session.user,
+        profile: null,
+        error: null,
+      };
+      setAuthState(nextState);
+      return nextState;
+    }
+
+    if (!profileResult.profile) {
       clearAuthenticatedProfile();
       const nextState: AuthState = {
         status: "error",
@@ -148,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return nextState;
     }
 
+    const profile = profileResult.profile;
     profileCache.current.set(session.user.id, profile);
     setAuthenticatedProfile(profile.id, profile.role);
     const nextState: AuthState = {
@@ -189,6 +219,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const handleOnline = () => {
+      if (mounted) void refreshAuth();
+    };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       queueMicrotask(() => {
         if (mounted) {
@@ -223,11 +256,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     });
 
+    window.addEventListener("online", handleOnline);
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.removeEventListener("online", handleOnline);
     };
-  }, [processSession]);
+  }, [processSession, refreshAuth]);
 
   const value = useMemo(() => ({
     ...authState,

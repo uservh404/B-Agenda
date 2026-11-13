@@ -79,6 +79,14 @@ function AuthenticatedRoute({ children, administratorOnly = false }: { children:
     );
   }
 
+  if (status === "offline" && location.pathname !== "/principal") {
+    return <Navigate to="/principal" replace />;
+  }
+
+  if (status === "offline") {
+    return <>{children}</>;
+  }
+
   if (administratorOnly && profile?.role !== "administrador") {
     return <Navigate to="/principal" replace />;
   }

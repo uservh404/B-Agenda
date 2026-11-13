@@ -42,6 +42,48 @@ export interface SaveCalendarEventInput {
   resolvesOperationId?: string | null;
 }
 
+export interface CalendarOutboxSaveOperation {
+  userId: string;
+  operationId: string;
+  eventId: string;
+  kind: "save";
+  scope?: "personal" | "shared" | "shared-update";
+  attempted?: boolean;
+  supersedesOperationId?: string | null;
+  input: SaveCalendarEventInput;
+  eventSnapshot: CalendarEvent;
+  status: "pending" | "conflict" | "rejected";
+  code?: string;
+  lastError?: string;
+  createdAt: string;
+}
+
+export interface CalendarOutboxCancelOperation {
+  userId: string;
+  operationId: string;
+  eventId: string;
+  kind: "cancel";
+  scope?: "personal" | "shared";
+  expectedVersion: number;
+  resolvesOperationId: string | null;
+  eventSnapshot: CalendarEvent;
+  status: "pending" | "conflict" | "rejected";
+  code?: string;
+  lastError?: string;
+  createdAt: string;
+}
+
+export type CalendarOutboxOperation =
+  | CalendarOutboxSaveOperation
+  | CalendarOutboxCancelOperation;
+
+export interface CalendarCacheMetadata {
+  userId: string;
+  assignableWorkers?: AssignableWorker[];
+  workersSavedAt?: string;
+  lastSuccessfulSyncAt?: string;
+}
+
 export type CalendarOperationResult =
   | { status: "confirmed"; eventId: string; version: number }
   | { status: "conflict" | "rejected"; code: string };

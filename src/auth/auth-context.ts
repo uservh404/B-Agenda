@@ -30,7 +30,7 @@ export function getEffectiveProfile(profile: AuthProfile): AuthProfile {
 }
 
 export interface AuthState {
-  status: "loading" | "unauthenticated" | "authenticated" | "recovery" | "error";
+  status: "loading" | "unauthenticated" | "authenticated" | "offline" | "recovery" | "error";
   session: Session | null;
   user: User | null;
   profile: AuthProfile | null;
