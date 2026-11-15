@@ -367,7 +367,7 @@
 
 .event-scope-pill.scope-personal {
   background: rgba(34, 197, 94, 0.16);
-  color: #bbf7d0;
+  color: #e2e8f0;
   border: 1px solid rgba(74, 222, 128, 0.42);
 }
 
@@ -1253,59 +1253,8 @@
   outline: none;
 }
 
-.sync-indicator.has-attention {
-  color: #bbf7d0;
-}
-
 .sync-indicator.is-offline {
-  color: #cbd5e1;
-}
-
-.sync-indicator-icon {
-  position: relative;
-  display: inline-flex;
-}
-
-.sync-check-overlay,
-.sync-alert-overlay {
-  position: absolute;
-  right: -2px;
-  bottom: -1px;
-  padding: 1px;
-  border-radius: 50%;
-  background: #1e293b;
-}
-
-.sync-alert-overlay {
-  right: -5px;
-  top: -4px;
-  bottom: auto;
   color: #f87171;
-}
-
-.sync-pending-count {
-  position: absolute;
-  top: -5px;
-  right: -6px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border: 1px solid rgba(15, 23, 42, 0.8);
-  border-radius: 999px;
-  background: #cbd5e1;
-  color: #0f172a;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-}
-
-.sync-spinning {
-  animation: sync-spin 1.1s linear infinite;
-}
-
-@keyframes sync-spin {
-  to { transform: rotate(360deg); }
 }
 
 .sync-panel {

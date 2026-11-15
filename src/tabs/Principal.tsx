@@ -1,14 +1,11 @@
 import "./S-principal.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  Check,
   Cloud,
-  CloudOff,
   Eye,
   Pencil,
-  RefreshCw,
   Trash2,
+  X,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -54,6 +51,14 @@ import type {
 type EventAudienceFilter = "all" | "collaborative" | "personal";
 
 const CALENDAR_LOAD_TIMEOUT_MS = 20000;
+const OFFLINE_SYNC_NOTICE = "La conexión se perdió antes de iniciar la sincronización. Los cambios se reintentarán sincronizar al reconectarse.";
+const CALENDAR_OFFLINE_STATUS_MESSAGES = new Set([
+  "No hay conexión. Se muestra la agenda guardada en este equipo.",
+  "Hay cambios pendientes. Se volverán a intentar cuando la conexión esté disponible.",
+  "El cambio se conservó en este equipo y se volverá a intentar.",
+  "La cancelación se conservó en este equipo y se volverá a intentar.",
+  "Cancelación guardada en este equipo. Quedará pendiente de sincronización.",
+]);
 
 function withCalendarLoadTimeout<T>(request: Promise<T>): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -1517,7 +1522,11 @@ function Principal() {
     }
   };
 
-  const panelWarnings = [...new Set([loadError, loadWarning, realtimeWarning, syncError].filter(Boolean))];
+  const panelWarnings = [...new Set(
+    [loadError, loadWarning, syncError]
+      .filter((warning) => warning && !CALENDAR_OFFLINE_STATUS_MESSAGES.has(warning)),
+  )];
+  if (!isConnectionAvailable) panelWarnings.unshift(OFFLINE_SYNC_NOTICE);
   const sharedUpdateResolution = editingEventId
     ? [...getSharedUpdateOperations(editingEventId)]
       .filter((operation) => operation.status === "conflict" || operation.status === "rejected")
@@ -1699,29 +1708,14 @@ function Principal() {
                 <h3>Calendario</h3>
                 <div className="sync-panel-anchor" ref={syncPanelRef}>
                   <button
-                    className={`sync-indicator ${!isConnectionAvailable ? "is-offline" : ""} ${hasSyncAttention ? "has-attention" : ""}`}
+                    className={`sync-indicator ${!isConnectionAvailable ? "is-offline" : ""}`}
                     type="button"
                     aria-label={`Estado de sincronización: ${syncStatusLabel}. ${pendingOperationCount} operaciones pendientes.`}
                     aria-expanded={syncPanelOpen}
                     aria-haspopup="dialog"
                     onClick={() => setSyncPanelOpen((open) => !open)}
                   >
-                    <span className="sync-indicator-icon" aria-hidden="true">
-                      {!isConnectionAvailable ? (
-                        <CloudOff size={19} />
-                      ) : isSyncing ? (
-                        <RefreshCw className={isSyncing ? "sync-spinning" : ""} size={18} />
-                      ) : (
-                        <>
-                          <Cloud size={19} />
-                          <Check className="sync-check-overlay" size={10} />
-                        </>
-                      )}
-                      {hasSyncAttention && <AlertTriangle className="sync-alert-overlay" size={11} />}
-                    </span>
-                    {pendingOperationCount > 0 && (
-                      <span className="sync-pending-count">{pendingOperationCount}</span>
-                    )}
+                    <Cloud size={19} aria-hidden="true" />
                   </button>
                   {syncPanelOpen && (
                     <div className="sync-panel" role="dialog" aria-label="Estado de sincronización">
@@ -1730,6 +1724,14 @@ function Principal() {
                         <span className={`sync-connection-state ${isConnectionAvailable ? "connected" : "disconnected"}`}>
                           {isConnectionAvailable ? "Con conexión" : "Sin conexión"}
                         </span>
+                        <button
+                          type="button"
+                          className="resource-sync-panel-close"
+                          aria-label="Cerrar panel de sincronización"
+                          onClick={() => setSyncPanelOpen(false)}
+                        >
+                          <X size={16} aria-hidden="true" />
+                        </button>
                       </div>
                       <p className="sync-status-line">{syncStatusLabel}</p>
                       <div className="sync-counts">
@@ -1753,24 +1755,17 @@ function Principal() {
                         <div className="sync-operation-list">
                           {panelOperations.map((operation) => {
                             const isSharedDraftOperation = operation.scope === "shared";
-                            const isSharedUpdateOperation = operation.kind === "save"
-                              && operation.scope === "shared-update";
-                            const canDeleteDraft = operation.kind === "save"
-                              && isSharedDraftOperation
-                              && (operation.status !== "pending" || !operation.attempted);
                             return (
                               <div className="sync-operation-item" key={operation.operationId}>
                                 <div className="sync-operation-copy">
                                   <strong>{operation.eventSnapshot.title}</strong>
                                   <span>
                                     {operation.kind === "cancel"
-                                      ? operation.scope === "shared" ? "Cancelación compartida" : "Cancelación personal"
-                                      : isSharedDraftOperation
-                                        ? "Borrador compartido"
-                                        : isSharedUpdateOperation ? "Actualización compartida" : "Evento personal"}
+                                      ? "Eliminación"
+                                      : operation.input.expectedVersion === 0 ? "Creación" : "Modificación"}
                                     {" · "}
                                     {operation.status === "pending"
-                                      ? operation.lastError ? "No se pudo enviar" : "Pendiente"
+                                      ? isSyncing ? "Sincronizando" : "Sincronización pendiente"
                                       : operation.status === "conflict" ? "Conflicto" : "Rechazado"}
                                   </span>
                                   {(operation.lastError || operation.code) && (
@@ -1780,20 +1775,8 @@ function Principal() {
                                     })}</small>
                                   )}
                                 </div>
-                                <div className="sync-operation-actions">
-                                  {operation.status === "pending" && (
-                                    <button
-                                      type="button"
-                                      disabled={!canSyncCalendar || isSyncing}
-                                      onClick={() => {
-                                        setSyncPanelOpen(false);
-                                        setRetrySyncSequence((sequence) => sequence + 1);
-                                      }}
-                                    >
-                                      Reintentar
-                                    </button>
-                                  )}
-                                  {operation.status !== "pending" && (
+                                {operation.status !== "pending" && (
+                                  <div className="sync-operation-actions">
                                     <button
                                       type="button"
                                       disabled={!isSharedDraftOperation && !canSyncCalendar}
@@ -1801,20 +1784,8 @@ function Principal() {
                                     >
                                       {operation.kind === "cancel" ? "Revisar" : "Corregir"}
                                     </button>
-                                  )}
-                                  {canDeleteDraft && (
-                                    <button
-                                      type="button"
-                                      className="sync-delete-draft"
-                                      onClick={() => {
-                                        setSyncPanelOpen(false);
-                                        setEventToDelete(operation.eventId);
-                                      }}
-                                    >
-                                      Eliminar
-                                    </button>
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -1829,7 +1800,7 @@ function Principal() {
                           void reloadEvents(false);
                         }}
                       >
-                        {isSyncing ? "Sincronizando..." : "Actualizar ahora"}
+                        {isSyncing || !isConnectionAvailable ? "Sincronizando..." : "Actualizar ahora"}
                       </button>
                     </div>
                   )}

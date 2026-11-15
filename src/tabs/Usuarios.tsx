@@ -20,6 +20,12 @@ interface AdminUser {
   updated_at: string;
 }
 
+interface ResourcePermissionRow {
+  user_id: string;
+  role: UserRole;
+  can_manage_resources: boolean;
+}
+
 function isAdminUser(value: unknown): value is AdminUser {
   if (!value || typeof value !== "object") return false;
   const user = value as Partial<AdminUser>;
@@ -31,17 +37,29 @@ function isAdminUser(value: unknown): value is AdminUser {
     && typeof user.can_publish_announcements === "boolean";
 }
 
+function isResourcePermissionRow(value: unknown): value is ResourcePermissionRow {
+  if (!value || typeof value !== "object") return false;
+  const permission = value as Partial<ResourcePermissionRow>;
+  return typeof permission.user_id === "string"
+    && (permission.role === "administrador" || permission.role === "empleado")
+    && typeof permission.can_manage_resources === "boolean";
+}
+
 function displayRole(role: UserRole) {
   return role === "administrador" ? "Administrador" : "Empleado";
 }
 
 function Usuarios() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, profile: currentProfile } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [resourcePermissions, setResourcePermissions] = useState<Record<string, boolean>>({});
+  const [resourcePermissionsLoaded, setResourcePermissionsLoaded] = useState(false);
+  const [resourcePermissionError, setResourcePermissionError] = useState("");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [draftRole, setDraftRole] = useState<UserRole>("empleado");
   const [draftCanAssignEvents, setDraftCanAssignEvents] = useState(false);
   const [draftCanPublishAnnouncements, setDraftCanPublishAnnouncements] = useState(false);
+  const [draftCanManageResources, setDraftCanManageResources] = useState<boolean | null>(null);
   const [searchText, setSearchText] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("todos");
   const [sortAscending, setSortAscending] = useState(true);
@@ -80,17 +98,52 @@ function Usuarios() {
     }
   }, []);
 
+  const loadResourcePermissions = useCallback(async (): Promise<boolean> => {
+    setResourcePermissionsLoaded(false);
+    setResourcePermissionError("");
+
+    try {
+      const { data, error } = await supabase.rpc("admin_list_resource_permissions_v1");
+      if (error) throw error;
+      if (!Array.isArray(data) || !data.every(isResourcePermissionRow)) {
+        throw new Error("La respuesta de permisos de Recursos no es válida.");
+      }
+
+      const permissions: Record<string, boolean> = {};
+      data.forEach((permission) => {
+        permissions[permission.user_id] = permission.can_manage_resources;
+      });
+      setResourcePermissions(permissions);
+      setResourcePermissionsLoaded(true);
+      return true;
+    } catch {
+      setResourcePermissions({});
+      setResourcePermissionError("No se pudieron cargar los permisos de Recursos. Revisa la migración de Recursos en Supabase.");
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadUsers();
     });
   }, [loadUsers]);
 
+  useEffect(() => {
+    if (currentProfile?.role !== "administrador") return;
+    queueMicrotask(() => {
+      void loadResourcePermissions();
+    });
+  }, [currentProfile?.role, loadResourcePermissions]);
+
   const openUser = (user: AdminUser) => {
     setSelectedUser(user);
     setDraftRole(user.role);
     setDraftCanAssignEvents(user.can_assign_events);
     setDraftCanPublishAnnouncements(user.can_publish_announcements);
+    setDraftCanManageResources(resourcePermissionsLoaded
+      ? resourcePermissions[user.id] ?? false
+      : null);
     setActionMessage("");
     setActionError("");
   };
@@ -106,6 +159,9 @@ function Usuarios() {
       const permissionsChanged = selectedUser.role !== draftRole
         || selectedUser.can_assign_events !== draftCanAssignEvents
         || selectedUser.can_publish_announcements !== draftCanPublishAnnouncements;
+      const resourcePermissionChanged = draftResourcePermissionChanged;
+
+      if (!permissionsChanged && !resourcePermissionChanged) return;
 
       if (permissionsChanged) {
         const { error } = await supabase.rpc("admin_update_user_permissions_v2", {
@@ -121,16 +177,36 @@ function Usuarios() {
         }
       }
 
-      if (permissionsChanged) {
+      if (resourcePermissionChanged) {
+        const { data, error } = await supabase.rpc("admin_set_resource_permission_v1", {
+          p_user_id: selectedUser.id,
+          p_can_manage_resources: effectiveDraftResourcePermission,
+        });
+
+        if (error || data !== true) {
+          setActionError(permissionsChanged
+            ? "El rol y los permisos existentes se guardaron, pero no se pudo actualizar el permiso de Recursos."
+            : "No se pudo guardar el permiso de Recursos. Verifica la migración y vuelve a intentarlo.");
+          return;
+        }
+      }
+
+      if (permissionsChanged || resourcePermissionChanged) {
         const refreshedUsers = await loadUsers();
         if (!refreshedUsers) {
           setActionError("Los cambios se guardaron correctamente, pero no se pudo actualizar la información mostrada. Intenta cargarla de nuevo.");
           return;
         }
+        if (resourcePermissionChanged && !(await loadResourcePermissions())) {
+          setActionError("El permiso de Recursos se guardó, pero no se pudo actualizar su estado mostrado. Vuelve a cargar los permisos.");
+          return;
+        }
         setSelectedUser(refreshedUsers.find((user) => user.id === selectedUser.id) ?? null);
       }
 
-      setActionMessage("El rol y los permisos se guardaron correctamente.");
+      setActionMessage(resourcePermissionChanged && !permissionsChanged
+        ? "El permiso de Recursos se guardó correctamente."
+        : "El rol y los permisos se guardaron correctamente.");
     } catch {
       setActionError("Ocurrió un error al guardar los cambios. Revisa la conexión e inténtalo nuevamente.");
     } finally {
@@ -153,6 +229,15 @@ function Usuarios() {
 
   const selectedIsCurrentUser = selectedUser?.id === currentUser?.id;
   const cannotEditSelectedUser = !currentUser || selectedIsCurrentUser;
+  const selectedResourcePermission = selectedUser
+    ? resourcePermissions[selectedUser.id] ?? false
+    : false;
+  const effectiveDraftResourcePermission = draftCanManageResources ?? selectedResourcePermission;
+  const draftResourcePermissionChanged = !!selectedUser
+    && currentProfile?.role === "administrador"
+    && draftRole === "empleado"
+    && resourcePermissionsLoaded
+    && selectedResourcePermission !== effectiveDraftResourcePermission;
 
   return (
     <div className="dashboard users-page">
@@ -181,6 +266,9 @@ function Usuarios() {
 
           {actionMessage && <p className="users-success" role="status">✓ {actionMessage}</p>}
           {actionError && <p className="users-error-message" role="alert">{actionError}</p>}
+          {resourcePermissionError && currentProfile?.role === "administrador" && (
+            <p className="users-error-message" role="status">{resourcePermissionError}</p>
+          )}
           <div className="users-controls">
             <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Buscar por nombre o correo" aria-label="Buscar usuarios" />
             <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)} aria-label="Filtrar por tipo de usuario">
@@ -231,7 +319,6 @@ function Usuarios() {
                       type="button"
                       className="user-delete-button"
                       disabled
-                      title="La eliminación segura de cuentas está pendiente de configuración."
                     >
                       Eliminar
                     </button>
@@ -284,6 +371,22 @@ function Usuarios() {
                 disabled={cannotEditSelectedUser || isSaving || draftRole === "administrador"}
               />
             </label>
+            {currentProfile?.role === "administrador" && (
+              <label className="user-event-permission user-edit-permission">
+                <span>Puede administrar Recursos</span>
+                <input
+                  type="checkbox"
+                  checked={draftRole === "administrador" || effectiveDraftResourcePermission}
+                  onChange={(event) => setDraftCanManageResources(event.target.checked)}
+                  disabled={
+                    cannotEditSelectedUser
+                    || isSaving
+                    || draftRole === "administrador"
+                    || !resourcePermissionsLoaded
+                  }
+                />
+              </label>
+            )}
             {draftRole === "administrador" && (
               <p className="users-pending-note">
                 El rol de administrador habilita automáticamente todos los permisos administrativos.
@@ -301,14 +404,18 @@ function Usuarios() {
                 selectedUser.role === draftRole
                 && selectedUser.can_assign_events === draftCanAssignEvents
                 && selectedUser.can_publish_announcements === draftCanPublishAnnouncements
+                && (
+                  currentProfile?.role !== "administrador"
+                  || draftRole === "administrador"
+                  || !draftResourcePermissionChanged
+                )
               )}
             >
               {isSaving ? "Guardando..." : "Guardar cambios"}
             </button>
-            <button type="button" className="user-delete-button modal-delete" disabled title="La eliminación segura de cuentas está pendiente de configuración.">
+            <button type="button" className="user-delete-button modal-delete" disabled>
               Eliminar usuario
             </button>
-            <p className="users-pending-note">La eliminación segura de cuentas está pendiente de configuración.</p>
           </section>
         </div>
       )}
