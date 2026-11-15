@@ -79,7 +79,8 @@ function AuthenticatedRoute({ children, administratorOnly = false }: { children:
     );
   }
 
-  if (status === "offline" && location.pathname !== "/principal") {
+  const offlineAccessiblePaths = ["/principal", "/anuncios", "/notificaciones"];
+  if (status === "offline" && !offlineAccessiblePaths.includes(location.pathname)) {
     return <Navigate to="/principal" replace />;
   }
 

@@ -58,6 +58,7 @@
 }
 
 .event-summary-content { display: grid; gap: 16px; padding: 20px 22px; }
+.event-summary-offline-note { margin: 0; color: #fde68a; font-size: 11px; line-height: 1.45; }
 .event-summary-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 
 .event-summary-fact {
@@ -126,6 +127,7 @@ html[data-theme="claro"] .event-summary-close { border-color: #cbd5e1; backgroun
 html[data-theme="claro"] .event-summary-fact,
 html[data-theme="claro"] .event-summary-section { border-color: #e2e8f0; background: #f8fafc; }
 html[data-theme="claro"] .event-summary-fact { color: #1d4ed8; }
+html[data-theme="claro"] .event-summary-offline-note { color: #92400e; }
 html[data-theme="claro"] .event-summary-fact span,
 html[data-theme="claro"] .event-summary-person small { color: #64748b; }
 html[data-theme="claro"] .event-summary-fact strong,
@@ -142,3 +144,4 @@ html[data-theme="claro"] .event-summary-reminder { color: #92400e; }
   .event-summary-facts { grid-template-columns: 1fr; }
   .event-summary-footer { padding: 0 16px 16px; }
 }
+.event-summary-status { display: inline-flex; margin-top: 6px; color: #fecaca; font-size: 11px; font-weight: 700; }

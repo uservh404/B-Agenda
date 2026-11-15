@@ -1,30 +1,62 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, BookOpen, LogOut, Megaphone, Package, Settings, UsersRound } from "lucide-react";
-import { getActiveUserId } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { getUnreadAnnouncementCount, subscribeToAnnouncementUpdates } from "../auth/announcement-reads";
 import { getUnreadNotificationCount, subscribeToNotificationUpdates } from "../auth/notifications";
+import {
+  getNotificationCacheIdentity,
+  removeNotificationChangesSubscription,
+  subscribeToNotificationChanges,
+  synchronizeNotifications,
+} from "../auth/notifications";
 import "./S-sidebar.css";
 
 function Sidebar() {
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+  const [notificationError, setNotificationError] = useState("");
   const administrator = profile?.role === "administrador";
-  const currentUserId = getActiveUserId();
+  const announcementUserId = user?.id ?? "";
+  const notificationUserId = user?.id ?? "";
+  const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
+  const notificationIdentityResult = useMemo(() => {
+    if (!notificationUserId) return { identity: null, error: "" };
+    try {
+      return { identity: getNotificationCacheIdentity(notificationUserId), error: "" };
+    } catch (error) {
+      return {
+        identity: null,
+        error: error instanceof Error ? error.message : "No se pudo preparar la actualización de Notificaciones.",
+      };
+    }
+  }, [notificationUserId]);
   const [unreadCounts, setUnreadCounts] = useState(() => ({
-    announcements: getUnreadAnnouncementCount(currentUserId),
-    notifications: getUnreadNotificationCount(currentUserId),
+    announcements: 0,
+    notifications: 0,
   }));
 
   useEffect(() => {
     const refreshUnreadCounts = () => {
-      setUnreadCounts({
-        announcements: getUnreadAnnouncementCount(currentUserId),
-        notifications: getUnreadNotificationCount(currentUserId),
-      });
+      if (announcementUserId) {
+        void getUnreadAnnouncementCount(announcementUserId).then((announcements) => {
+          setUnreadCounts((current) => ({ ...current, announcements }));
+        }).catch((error: unknown) => {
+          setNotificationError(error instanceof Error ? error.message : "No se pudo actualizar el contador de Anuncios.");
+        });
+      } else {
+        setUnreadCounts((current) => ({ ...current, announcements: 0 }));
+      }
+      if (notificationUserId) {
+        void getUnreadNotificationCount(notificationUserId).then((notifications) => {
+          setNotificationError("");
+          setUnreadCounts((current) => ({ ...current, notifications }));
+        }).catch(() => setNotificationError("No se pudo actualizar el contador de Notificaciones."));
+      } else {
+        setUnreadCounts((current) => ({ ...current, notifications: 0 }));
+      }
     };
     const unsubscribeAnnouncements = subscribeToAnnouncementUpdates(refreshUnreadCounts);
     const unsubscribeNotifications = subscribeToNotificationUpdates(refreshUnreadCounts);
@@ -32,7 +64,44 @@ function Sidebar() {
       unsubscribeAnnouncements();
       unsubscribeNotifications();
     };
-  }, [currentUserId]);
+  }, [announcementUserId, notificationUserId]);
+
+  useEffect(() => {
+    const updateConnection = () => setIsOnline(window.navigator.onLine);
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("offline", updateConnection);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("offline", updateConnection);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notificationUserId || !isOnline || !notificationIdentityResult.identity) return;
+    let active = true;
+    const identity = notificationIdentityResult.identity;
+    const channel = subscribeToNotificationChanges(
+      notificationUserId,
+      () => {
+        if (!active) return;
+        void synchronizeNotifications(identity).then((result) => {
+          if (result.error) setNotificationError(result.error);
+          else setNotificationError("");
+        }).catch((error: unknown) => {
+          setNotificationError(error instanceof Error ? error.message : "No se pudieron actualizar las Notificaciones.");
+        });
+      },
+      (channelStatus) => {
+        if (active && channelStatus === "CHANNEL_ERROR") {
+          setNotificationError("Realtime de Notificaciones no está disponible.");
+        }
+      },
+    );
+    return () => {
+      active = false;
+      void removeNotificationChangesSubscription(channel);
+    };
+  }, [notificationUserId, isOnline, notificationIdentityResult]);
 
   const renderUnreadBadge = (count: number, label: string) => count > 0 && (
     <span className="sidebar-unread-badge" aria-label={`${count} ${label} sin revisar`} title={`${count} ${label} sin revisar`}>
@@ -73,6 +142,7 @@ function Sidebar() {
             <li className="sidebar-menu-item" onClick={() => { void handleSignOut(); }}><LogOut aria-hidden="true" /><span>Cerrar sesión</span></li>
           </ul>
           {signOutError && <p className="sidebar-auth-error" role="alert">{signOutError}</p>}
+          {(notificationError || notificationIdentityResult.error) && <p className="sidebar-auth-error" role="status">{notificationError || notificationIdentityResult.error}</p>}
         </>
       )}
     </aside>

@@ -1,55 +1,41 @@
-interface StoredAnnouncement {
-  id: number;
-}
+import {
+  getAnnouncementCacheIdentity,
+  readAnnouncementCache,
+} from "../services/announcement-offline-cache";
 
-type SeenAnnouncements = Record<string, number[]>;
+const seenThroughStorageKey = "agenda-juventud-announcements-seen-through";
+const announcementsUpdatedEvent = "agenda-juventud-announcements-updated";
 
-const announcementsStorageKey = "biblioteca-announcements";
-const seenAnnouncementsStorageKey = "biblioteca-announcements-seen";
-const announcementsUpdatedEvent = "biblioteca-announcements-updated";
-
-function readAnnouncements(): StoredAnnouncement[] {
+function readSeenThrough(): Record<string, string> {
   try {
-    const storedAnnouncements = window.localStorage.getItem(announcementsStorageKey);
-    if (!storedAnnouncements) return [];
-    const parsedAnnouncements: unknown = JSON.parse(storedAnnouncements);
-    return Array.isArray(parsedAnnouncements) ? parsedAnnouncements as StoredAnnouncement[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function readSeenAnnouncements(): SeenAnnouncements {
-  try {
-    const storedSeenAnnouncements = window.localStorage.getItem(seenAnnouncementsStorageKey);
-    if (!storedSeenAnnouncements) return {};
-    const parsedSeenAnnouncements: unknown = JSON.parse(storedSeenAnnouncements);
-    return parsedSeenAnnouncements && typeof parsedSeenAnnouncements === "object"
-      ? parsedSeenAnnouncements as SeenAnnouncements
-      : {};
+    const stored = window.localStorage.getItem(seenThroughStorageKey);
+    if (!stored) return {};
+    const value: unknown = JSON.parse(stored);
+    return value && typeof value === "object" ? value as Record<string, string> : {};
   } catch {
     return {};
   }
 }
 
-export function getUnreadAnnouncementCount(userId: number): number {
-  const seenIds = new Set(readSeenAnnouncements()[String(userId)] ?? []);
-  return readAnnouncements().filter((announcement) => !seenIds.has(announcement.id)).length;
+export async function getUnreadAnnouncementCount(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const identity = getAnnouncementCacheIdentity(userId);
+  const bundle = await readAnnouncementCache(identity);
+  const seenThrough = readSeenThrough()[identity.scope] ?? "";
+  return (bundle.announcements ?? []).filter((announcement) =>
+    announcement.createdAt > seenThrough,
+  ).length;
 }
 
-export function markAnnouncementsAsSeen(userId: number) {
-  const announcements = readAnnouncements();
-  const seenAnnouncements = readSeenAnnouncements();
-  const key = String(userId);
-  const seenIds = new Set(seenAnnouncements[key] ?? []);
-  const previousCount = seenIds.size;
-  announcements.forEach((announcement) => seenIds.add(announcement.id));
-
-  if (seenIds.size === previousCount) return;
-
-  window.localStorage.setItem(seenAnnouncementsStorageKey, JSON.stringify({
-    ...seenAnnouncements,
-    [key]: [...seenIds],
+export function markAnnouncementsAsSeen(userId: string, latestCreatedAt: string | null) {
+  if (!userId || !latestCreatedAt) return;
+  const identity = getAnnouncementCacheIdentity(userId);
+  const seenThrough = readSeenThrough();
+  const previous = seenThrough[identity.scope] ?? "";
+  if (latestCreatedAt <= previous) return;
+  window.localStorage.setItem(seenThroughStorageKey, JSON.stringify({
+    ...seenThrough,
+    [identity.scope]: latestCreatedAt,
   }));
   window.dispatchEvent(new Event(announcementsUpdatedEvent));
 }
