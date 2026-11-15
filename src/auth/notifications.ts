@@ -7,11 +7,21 @@ export type NotificationKind =
   | "event_unassigned"
   | "event_cancelled"
   | "event_reminder"
+  | "event_admin_created"
+  | "event_admin_updated"
+  | "event_admin_cancelled"
+  | "event_admin_deleted"
   | "permission_granted"
   | "permission_revoked"
   | "role_changed"
+  | "admin_role_changed"
+  | "admin_permission_changed"
   | "resource_created"
-  | "announcement_created";
+  | "resource_updated"
+  | "resource_deleted"
+  | "announcement_created"
+  | "announcement_updated"
+  | "announcement_deleted";
 
 export interface NotificationEventDetails {
   id: string;
@@ -36,6 +46,7 @@ export interface NotificationResourceDetails {
   storedIn: string;
   notes: string[];
   authorName: string;
+  actionBy?: string;
 }
 
 export interface NotificationAnnouncementDetails {
@@ -44,12 +55,15 @@ export interface NotificationAnnouncementDetails {
   category: string;
   authorName: string;
   publishedAt: string;
+  actionBy?: string;
 }
 
 export interface NotificationPermissionDetails {
   permission: "can_assign_events" | "can_publish_announcements" | "can_manage_resources";
   granted: boolean;
   changedAt: string;
+  affectedUserName?: string;
+  actionBy?: string;
 }
 
 export interface AppNotification {
@@ -66,6 +80,8 @@ export interface AppNotification {
   announcement?: NotificationAnnouncementDetails;
   permission?: NotificationPermissionDetails;
   eventAvailability?: "cancelled" | "unassigned" | "unavailable" | "deleted";
+  resourceAvailability?: "deleted" | "unavailable";
+  announcementAvailability?: "deleted" | "unavailable";
 }
 
 export type NotificationOperationKind = "read" | "delete";
@@ -154,11 +170,21 @@ function isKind(value: unknown): value is NotificationKind {
     || value === "event_unassigned"
     || value === "event_cancelled"
     || value === "event_reminder"
+    || value === "event_admin_created"
+    || value === "event_admin_updated"
+    || value === "event_admin_cancelled"
+    || value === "event_admin_deleted"
     || value === "permission_granted"
     || value === "permission_revoked"
     || value === "role_changed"
+    || value === "admin_role_changed"
+    || value === "admin_permission_changed"
     || value === "resource_created"
-    || value === "announcement_created";
+    || value === "resource_updated"
+    || value === "resource_deleted"
+    || value === "announcement_created"
+    || value === "announcement_updated"
+    || value === "announcement_deleted";
 }
 
 function parseEventDetails(value: unknown): NotificationEventDetails | undefined {
@@ -202,8 +228,11 @@ function redactInaccessibleEventDetails(
   const cancelledEventIds = new Set(notifications
     .filter((notification) =>
       notification.eventAvailability === "cancelled"
-      || notification.kind === "event_cancelled"
-      || notification.event?.status === "cancelled",
+      || notification.eventAvailability === undefined && (
+        notification.kind === "event_cancelled"
+        || notification.kind === "event_admin_cancelled"
+        || notification.event?.status === "cancelled"
+      ),
     )
     .map((notification) => notification.eventId ?? notification.event?.id)
     .filter((eventId): eventId is string => !!eventId));
@@ -219,13 +248,17 @@ function redactInaccessibleEventDetails(
     const event = notification.event;
     const eventId = notification.eventId ?? event?.id;
     const isCancelledEvent = notification.eventAvailability === "cancelled"
-      || notification.kind === "event_cancelled"
-      || event?.status === "cancelled"
+      || notification.eventAvailability === undefined && (
+        notification.kind === "event_cancelled"
+        || notification.kind === "event_admin_cancelled"
+        || event?.status === "cancelled"
+      )
       || !!eventId && cancelledEventIds.has(eventId);
     const isUnassignedEvent = notification.eventAvailability === "unassigned"
       || (notification.kind === "event_unassigned" && event?.status !== "confirmed")
       || !!eventId && unassignedEventIds.has(eventId);
-    const isDeletedEvent = notification.eventAvailability === "deleted";
+    const isDeletedEvent = notification.eventAvailability === "deleted"
+      || notification.eventAvailability === undefined && notification.kind === "event_admin_deleted";
     const isUnavailableEvent = notification.eventAvailability === "unavailable" || isDeletedEvent;
     if (
       (!isCancelledEvent && !isUnassignedEvent && !isUnavailableEvent)
@@ -290,8 +323,13 @@ function parseNotification(value: unknown, userId: string): AppNotification {
     || summary.eventAvailability === "deleted"
   ) {
     notification.eventAvailability = summary.eventAvailability;
-  } else if (notification.kind === "event_cancelled") {
+  } else if (
+    notification.kind === "event_cancelled"
+    || notification.kind === "event_admin_cancelled"
+  ) {
     notification.eventAvailability = "cancelled";
+  } else if (notification.kind === "event_admin_deleted") {
+    notification.eventAvailability = "deleted";
   } else if (notification.kind === "event_unassigned" && notification.event?.status !== "confirmed") {
     notification.eventAvailability = "unassigned";
   } else if (
@@ -301,7 +339,15 @@ function parseNotification(value: unknown, userId: string): AppNotification {
   ) {
     notification.eventAvailability = "unavailable";
   }
-  if (summary.resource && typeof summary.resource === "object") {
+  if (
+    summary.resourceAvailability === "deleted"
+    || summary.resourceAvailability === "unavailable"
+  ) notification.resourceAvailability = summary.resourceAvailability;
+  if (
+    summary.announcementAvailability === "deleted"
+    || summary.announcementAvailability === "unavailable"
+  ) notification.announcementAvailability = summary.announcementAvailability;
+  if (!notification.resourceAvailability && summary.resource && typeof summary.resource === "object") {
     const resource = summary.resource as Partial<NotificationResourceDetails>;
     if (
       typeof resource.name === "string"
@@ -310,9 +356,10 @@ function parseNotification(value: unknown, userId: string): AppNotification {
       && typeof resource.storedIn === "string"
       && Array.isArray(resource.notes)
       && typeof resource.authorName === "string"
+      && (resource.actionBy === undefined || typeof resource.actionBy === "string")
     ) notification.resource = resource as NotificationResourceDetails;
   }
-  if (summary.announcement && typeof summary.announcement === "object") {
+  if (!notification.announcementAvailability && summary.announcement && typeof summary.announcement === "object") {
     const announcement = summary.announcement as Partial<NotificationAnnouncementDetails>;
     if (
       typeof announcement.title === "string"
@@ -320,6 +367,7 @@ function parseNotification(value: unknown, userId: string): AppNotification {
       && typeof announcement.category === "string"
       && typeof announcement.authorName === "string"
       && typeof announcement.publishedAt === "string"
+      && (announcement.actionBy === undefined || typeof announcement.actionBy === "string")
     ) notification.announcement = announcement as NotificationAnnouncementDetails;
   }
   if (summary.permission && typeof summary.permission === "object") {
@@ -330,6 +378,8 @@ function parseNotification(value: unknown, userId: string): AppNotification {
         || permission.permission === "can_manage_resources")
       && typeof permission.granted === "boolean"
       && typeof permission.changedAt === "string"
+      && (permission.affectedUserName === undefined || typeof permission.affectedUserName === "string")
+      && (permission.actionBy === undefined || typeof permission.actionBy === "string")
     ) notification.permission = permission as NotificationPermissionDetails;
   }
   return notification;
@@ -372,7 +422,7 @@ export function subscribeToNotificationChanges(
 }
 
 export async function getNotificationEventDetails(notificationId: string): Promise<NotificationEventDetailsResult> {
-  const { data, error } = await supabase.rpc("get_notification_event_details_v1", {
+  const { data, error } = await supabase.rpc("get_notification_admin_scope_event_details_v1", {
     p_notification_id: notificationId,
   });
   if (error) throw new Error(error.message || "No se pudo verificar el acceso a la información del evento.");
@@ -660,12 +710,13 @@ async function runNotificationSync(identity: NotificationCacheIdentity): Promise
   if (sessionError || sessionData.session?.user.id !== identity.userId) {
     return { serverReachable: false, error: "La sesión no corresponde a las notificaciones guardadas." };
   }
-  const { data, error } = await supabase.rpc("list_notifications_v1");
+  const { data, error } = await supabase.rpc("list_notifications_resource_announcement_scope_v1");
   if (error || !Array.isArray(data)) {
     return { serverReachable: false, error: error?.message ?? "No se pudo consultar la lista de Notificaciones." };
   }
   const notifications = data.map((row: unknown) => parseNotification(row, identity.userId));
   await saveNotificationSnapshot(identity, notifications, previousCache.savedAt);
+  notifyChanged();
   const { operations } = await readNotificationCache(identity);
   for (const operation of operations) {
     if (operation.status !== "pending") continue;
@@ -710,7 +761,7 @@ async function runNotificationSync(identity: NotificationCacheIdentity): Promise
       };
     }
   }
-  const { data: refreshed, error: refreshError } = await supabase.rpc("list_notifications_v1");
+  const { data: refreshed, error: refreshError } = await supabase.rpc("list_notifications_resource_announcement_scope_v1");
   if (refreshError || !Array.isArray(refreshed)) {
     return { serverReachable: false, error: "No se pudo actualizar la copia de Notificaciones." };
   }

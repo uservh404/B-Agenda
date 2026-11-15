@@ -46,11 +46,21 @@ const notificationLabels: Record<NotificationKind, { label: string; tone: string
   event_unassigned: { label: "Cambio de asignación", tone: "amber" },
   event_cancelled: { label: "Evento cancelado", tone: "red" },
   event_reminder: { label: "Recordatorio de evento", tone: "blue" },
+  event_admin_created: { label: "Aviso de evento", tone: "blue" },
+  event_admin_updated: { label: "Aviso de evento", tone: "amber" },
+  event_admin_cancelled: { label: "Aviso de evento", tone: "red" },
+  event_admin_deleted: { label: "Aviso de evento", tone: "red" },
   permission_granted: { label: "Permiso habilitado", tone: "green" },
   permission_revoked: { label: "Permiso retirado", tone: "red" },
   role_changed: { label: "Cambio de rol", tone: "amber" },
-  resource_created: { label: "Nuevo recurso", tone: "green" },
-  announcement_created: { label: "Nuevo anuncio", tone: "blue" },
+  admin_role_changed: { label: "Cambio de rol de usuario", tone: "amber" },
+  admin_permission_changed: { label: "Cambio de permiso de usuario", tone: "blue" },
+  resource_created: { label: "Recurso creado", tone: "green" },
+  resource_updated: { label: "Recurso actualizado", tone: "amber" },
+  resource_deleted: { label: "Recurso eliminado", tone: "red" },
+  announcement_created: { label: "Anuncio creado", tone: "blue" },
+  announcement_updated: { label: "Anuncio actualizado", tone: "amber" },
+  announcement_deleted: { label: "Anuncio eliminado", tone: "red" },
 };
 
 const permissionLabels: Record<NotificationPermissionDetails["permission"], string> = {
@@ -115,12 +125,15 @@ function NotificationInfoDialog({
               <p><span>Cantidad</span><strong>{details.quantity}</strong></p>
               <p><span>Almacenamiento</span><strong>{details.storedIn}</strong></p>
               <p><span>Observaciones</span><strong>{details.notes.length ? details.notes.join("\n") : "Sin observaciones."}</strong></p>
-              <p><span>Registró</span><strong>{details.authorName}</strong></p>
+              <p><span>{details.actionBy ? "Acción realizada por" : "Registró"}</span><strong>{details.actionBy ?? details.authorName}</strong></p>
             </>
           )}
           {isAnnouncement && (
             <>
               <p><span>Autor</span><strong>{details.authorName}</strong></p>
+              {details.actionBy && details.actionBy !== details.authorName && (
+                <p><span>Acción realizada por</span><strong>{details.actionBy}</strong></p>
+              )}
               <p><span>Categoría</span><strong>{details.category}</strong></p>
               <p><span>Publicado</span><strong>{new Date(details.publishedAt).toLocaleString("es-MX")}</strong></p>
               <section><span>Contenido</span><p>{details.content}</p></section>
@@ -128,6 +141,8 @@ function NotificationInfoDialog({
           )}
           {!isResource && !isAnnouncement && (
             <>
+              {details.affectedUserName && <p><span>Usuario afectado</span><strong>{details.affectedUserName}</strong></p>}
+              {details.actionBy && <p><span>Realizó el cambio</span><strong>{details.actionBy}</strong></p>}
               <p><span>Permiso</span><strong>{permissionLabels[details.permission]}</strong></p>
               <p><span>Estado</span><strong>{details.granted ? "Otorgado" : "Retirado"}</strong></p>
               <p><span>Fecha del cambio</span><strong>{new Date(details.changedAt).toLocaleString("es-MX")}</strong></p>
@@ -142,9 +157,9 @@ function NotificationInfoDialog({
 
 function getNotificationIcon(kind: NotificationKind) {
   if (kind.startsWith("event_")) return <CalendarDays size={17} aria-hidden="true" />;
-  if (kind === "resource_created") return <Package size={17} aria-hidden="true" />;
-  if (kind === "announcement_created") return <Megaphone size={17} aria-hidden="true" />;
-  if (kind === "role_changed") return <ShieldCheck size={17} aria-hidden="true" />;
+  if (kind.startsWith("resource_")) return <Package size={17} aria-hidden="true" />;
+  if (kind.startsWith("announcement_")) return <Megaphone size={17} aria-hidden="true" />;
+  if (kind === "role_changed" || kind === "admin_role_changed" || kind === "admin_permission_changed") return <ShieldCheck size={17} aria-hidden="true" />;
   if (kind.startsWith("permission_")) return <ShieldCheck size={17} aria-hidden="true" />;
   return <Bell size={17} aria-hidden="true" />;
 }
@@ -155,6 +170,12 @@ function getNotificationDetails(notification: AppNotification) {
     ?? notification.announcement
     ?? notification.permission
     ?? null;
+}
+
+function getNotificationTitle(notification: AppNotification) {
+  if (notification.kind === "resource_created") return "Recurso creado";
+  if (notification.kind === "announcement_created") return "Anuncio creado";
+  return notification.title;
 }
 
 function isConnectionError(message: string) {
@@ -461,8 +482,9 @@ function Notificaciones() {
     const showCachedEventOffline = () => {
       if (
         notification.eventAvailability === "cancelled"
-        || notification.kind === "event_cancelled"
         || notification.event?.status === "cancelled"
+        || notification.eventAvailability === undefined
+          && (notification.kind === "event_cancelled" || notification.kind === "event_admin_cancelled")
       ) {
         setEventUnavailableReason("cancelled");
         return;
@@ -478,7 +500,10 @@ function Notificaciones() {
         setEventUnavailableReason("general");
         return;
       }
-      if (notification.eventAvailability === "deleted") {
+      if (
+        notification.eventAvailability === "deleted"
+        || notification.eventAvailability === undefined && notification.kind === "event_admin_deleted"
+      ) {
         setEventUnavailableReason("deleted");
         return;
       }
@@ -514,9 +539,7 @@ function Notificaciones() {
           }
         }
       } else {
-        const reason = notification.kind === "event_cancelled"
-          ? "cancelled"
-          : result.reason;
+        const reason = result.reason;
         const accessState = reason === "cancelled"
           ? "cancelled"
           : reason === "unassigned" ? "unassigned"
@@ -766,7 +789,7 @@ function Notificaciones() {
                     <span className={`notification-marker marker-${meta.tone}`} aria-hidden="true">{getNotificationIcon(notification.kind)}</span>
                     <div className="notification-main">
                       <div className="notification-topline"><span className={`notification-type type-${meta.tone}`}>{meta.label}</span><time>{new Date(notification.createdAt).toLocaleString("es-MX")}</time></div>
-                      <h3>{notification.title}</h3>
+                      <h3>{getNotificationTitle(notification)}</h3>
                       <p>{notification.message}</p>
                       {notification.event && (
                         <div className="notification-event-details">
