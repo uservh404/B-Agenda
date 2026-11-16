@@ -1,6 +1,11 @@
 import { createContext } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import type { UserRole } from "./permissions";
+import type {
+  ProfileSettingsOperation,
+  ProfileVerificationApplyResult,
+  ProfileVerificationRequestResult,
+} from "../services/profile-settings-verification";
 
 export interface AuthProfile {
   id: string;
@@ -40,6 +45,15 @@ export interface AuthState {
 export interface AuthContextValue extends AuthState {
   refreshAuth: () => Promise<AuthState>;
   signOut: () => Promise<string | null>;
+  requestProfileSettingsVerification: (
+    operation: ProfileSettingsOperation,
+  ) => Promise<ProfileVerificationRequestResult>;
+  verifyAndApplyProfileSettings: (
+    challengeId: string,
+    code: string,
+    operation: ProfileSettingsOperation,
+  ) => Promise<ProfileVerificationApplyResult>;
+  cancelProfileSettingsVerification: (challengeId: string) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

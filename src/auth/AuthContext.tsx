@@ -5,6 +5,12 @@ import { supabase } from "../lib/supabaseClient";
 import { clearAuthenticatedProfile, setAuthenticatedProfile, type UserRole } from "./permissions";
 import { AuthContext, getEffectiveProfile, type AuthState, type AuthProfile } from "./auth-context";
 import {
+  cancelProfileSettingsVerification,
+  requestProfileSettingsVerification,
+  verifyAndApplyProfileSettings,
+} from "../services/profile-settings-verification";
+import type { ProfileSettingsOperation } from "../services/profile-settings-verification";
+import {
   clearPasswordRecovery,
   getVerifiedRecoveryUser,
   storeVerifiedRecoveryUser,
@@ -217,6 +223,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   }, [processSession]);
 
+  const requestSettingsVerification = useCallback(async (operation: ProfileSettingsOperation) => {
+    if (authState.status !== "authenticated" || !authState.user || !authState.profile) {
+      return { ok: false as const, code: "service_unavailable" as const };
+    }
+    return requestProfileSettingsVerification(operation);
+  }, [authState]);
+
+  const verifySettingsAndApply = useCallback(async (
+    challengeId: string,
+    code: string,
+    operation: ProfileSettingsOperation,
+  ) => {
+    if (authState.status !== "authenticated" || !authState.user || !authState.profile) {
+      return { ok: false as const, code: "service_unavailable" as const };
+    }
+
+    const result = await verifyAndApplyProfileSettings(challengeId, code, operation);
+    if (!result.ok) return result;
+
+    const userId = authState.user.id;
+    const updatedProfile: AuthProfile = {
+      ...authState.profile,
+      full_name: result.profile.full_name,
+      phone: result.profile.phone,
+    };
+    profileCache.current.set(userId, updatedProfile);
+    setAuthState((current) => {
+      if (current.status !== "authenticated" || current.user?.id !== userId) return current;
+      return { ...current, profile: updatedProfile };
+    });
+    return result;
+  }, [authState]);
+
+  const cancelSettingsVerification = useCallback(
+    (challengeId: string) => cancelProfileSettingsVerification(challengeId),
+    [],
+  );
+
   useEffect(() => {
     let mounted = true;
     const handleOnline = () => {
@@ -268,7 +312,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ...authState,
     refreshAuth,
     signOut,
-  }), [authState, refreshAuth, signOut]);
+    requestProfileSettingsVerification: requestSettingsVerification,
+    verifyAndApplyProfileSettings: verifySettingsAndApply,
+    cancelProfileSettingsVerification: cancelSettingsVerification,
+  }), [
+    authState,
+    refreshAuth,
+    signOut,
+    requestSettingsVerification,
+    verifySettingsAndApply,
+    cancelSettingsVerification,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
