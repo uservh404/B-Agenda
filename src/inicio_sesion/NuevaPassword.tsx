@@ -70,7 +70,7 @@ function NuevaPassword() {
         return;
       }
 
-      const signOutError = await signOut();
+      const signOutError = await signOut("global");
       if (signOutError) {
         setIsAuthorized(false);
         setSuccess("La contraseña se actualizó correctamente.");

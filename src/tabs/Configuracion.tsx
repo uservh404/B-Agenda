@@ -652,7 +652,7 @@ function Configuracion() {
   }
 
   function continuePendingEmailChange() {
-    const newEmail = serverPendingEmail || user?.new_email || pendingEmail;
+    const newEmail = serverPendingEmail || authPendingEmail || pendingEmail;
     if (!newEmail || !user?.email || isResending) return;
     setEmailChangeFlow({ currentEmail: user.email, newEmail, stage: "current" });
     setVerificationCode(emptyVerificationCode());
@@ -813,6 +813,7 @@ function Configuracion() {
   }
 
   const displayedEmail = user?.email || "Correo no disponible";
+  const authPendingEmail = user && "new_email" in user ? user.new_email : undefined;
   const displayedName = profile?.full_name || "Perfil no disponible";
   const displayedPhone = profile?.phone || "Teléfono no registrado";
   const displayedRole = profile?.role === "administrador" ? "Administrador" : profile?.role === "empleado" ? "Empleado" : "No disponible";
@@ -820,7 +821,7 @@ function Configuracion() {
     ? serverPendingEmail
     : pendingEmailCheck?.userId === user?.id
       ? ""
-      : user?.new_email || pendingEmail;
+      : authPendingEmail || pendingEmail;
   const emailConfirmed = Boolean(emailAwaitingConfirmation && user?.email?.toLowerCase() === emailAwaitingConfirmation.toLowerCase());
   const displayedProfileNotice = emailConfirmed
     ? "Información actualizada. Tus datos se guardaron correctamente. A partir de ahora podrás utilizar tu nuevo correo electrónico."

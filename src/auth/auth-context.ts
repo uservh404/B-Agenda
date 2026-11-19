@@ -1,6 +1,7 @@
 import { createContext } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import type { UserRole } from "./permissions";
+import type { OfflineUserIdentity } from "./offline-identity";
 import type {
   ProfileSettingsOperation,
   ProfileVerificationApplyResult,
@@ -37,14 +38,14 @@ export function getEffectiveProfile(profile: AuthProfile): AuthProfile {
 export interface AuthState {
   status: "loading" | "unauthenticated" | "authenticated" | "offline" | "recovery" | "error";
   session: Session | null;
-  user: User | null;
+  user: User | OfflineUserIdentity | null;
   profile: AuthProfile | null;
   error: string | null;
 }
 
 export interface AuthContextValue extends AuthState {
   refreshAuth: () => Promise<AuthState>;
-  signOut: () => Promise<string | null>;
+  signOut: (scope?: "local" | "global") => Promise<string | null>;
   requestProfileSettingsVerification: (
     operation: ProfileSettingsOperation,
   ) => Promise<ProfileVerificationRequestResult>;

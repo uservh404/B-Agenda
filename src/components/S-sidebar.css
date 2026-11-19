@@ -1,3 +1,8 @@
+.sidebar {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .sidebar-menu-list {
   display: grid;
   gap: 6px;

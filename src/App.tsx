@@ -47,8 +47,51 @@ function AuthStatusScreen({ title, message, action }: { title: string; message: 
   );
 }
 
+function EntryRoute() {
+  const { status, error, refreshAuth, signOut } = useAuth();
+
+  if (status === "loading") {
+    return (
+      <AuthStatusScreen
+        title="Comprobando acceso"
+        message="Estamos verificando tu sesión y perfil."
+        action={<span className="auth-loading-indicator" aria-live="polite"><span aria-hidden="true" />Comprobando...</span>}
+      />
+    );
+  }
+
+  if (status === "authenticated") {
+    return <Navigate to="/principal" replace />;
+  }
+
+  if (status === "recovery") {
+    return <Navigate to="/nueva-password" replace />;
+  }
+
+  if (status === "offline") {
+    return <Navigate to="/principal" replace />;
+  }
+
+  if (status === "error") {
+    return (
+      <AuthStatusScreen
+        title="No se pudo validar el acceso"
+        message={error ?? "No se pudo consultar tu perfil. El acceso permanece bloqueado."}
+        action={(
+          <div className="auth-status-actions">
+            <button type="button" onClick={() => { void refreshAuth(); }}>Volver a comprobar</button>
+            <button type="button" onClick={() => { void signOut(); }}>Cerrar sesión</button>
+          </div>
+        )}
+      />
+    );
+  }
+
+  return <Login />;
+}
+
 function AuthenticatedRoute({ children, administratorOnly = false }: { children: React.ReactNode; administratorOnly?: boolean }) {
-  const { status, profile, error, signOut } = useAuth();
+  const { status, profile, error, refreshAuth, signOut } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
@@ -74,12 +117,17 @@ function AuthenticatedRoute({ children, administratorOnly = false }: { children:
       <AuthStatusScreen
         title="No se pudo validar el acceso"
         message={error ?? "No se pudo consultar tu perfil. El acceso permanece bloqueado."}
-        action={<button type="button" onClick={() => { void signOut(); }}>Regresar al inicio de sesión</button>}
+        action={(
+          <div className="auth-status-actions">
+            <button type="button" onClick={() => { void refreshAuth(); }}>Volver a comprobar</button>
+            <button type="button" onClick={() => { void signOut(); }}>Cerrar sesión</button>
+          </div>
+        )}
       />
     );
   }
 
-  const offlineAccessiblePaths = ["/principal", "/anuncios", "/notificaciones", "/configuracion"];
+  const offlineAccessiblePaths = ["/principal", "/recursos", "/anuncios", "/notificaciones", "/configuracion"];
   if (status === "offline" && !offlineAccessiblePaths.includes(location.pathname)) {
     return <Navigate to="/principal" replace />;
   }
@@ -102,7 +150,7 @@ function App() {
           path = camino o dirección.
           "/" representa la pantalla principal.
           element indica qué componente se mostrará. */}
-      <Route path="/" element={<Login />} />
+      <Route path="/" element={<EntryRoute />} />
 
       {/* Cuando la ruta sea "/registro",
           React mostrará el componente Registro. */}

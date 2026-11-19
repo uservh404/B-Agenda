@@ -43,7 +43,7 @@ function Login() {
       }
 
       if (!data.user.email_confirmed_at) {
-        const { error: signOutError } = await supabase.auth.signOut();
+        const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
         setError(signOutError
           ? "Confirma tu correo electrónico. No se pudo cerrar la sesión automáticamente; vuelve a intentarlo."
           : "Confirma tu correo electrónico antes de iniciar sesión.");
@@ -51,11 +51,12 @@ function Login() {
       }
 
       const authResult = await refreshAuth();
+      if (authResult.status === "offline") {
+        setError("Se inició la sesión, pero no podemos comprobar tu acceso sin conexión. Se conservará y volveremos a verificarlo cuando regrese Internet.");
+        return;
+      }
       if (authResult.status !== "authenticated" || !authResult.profile) {
-        const { error: signOutError } = await supabase.auth.signOut();
-        setError(signOutError
-          ? "No se pudo validar tu perfil ni cerrar la sesión. El acceso a las pantallas protegidas permanece bloqueado."
-          : authResult.error ?? "No se pudo validar el perfil de tu cuenta. El acceso fue bloqueado.");
+        setError(authResult.error ?? "No se pudo validar el perfil de tu cuenta. El acceso permanece bloqueado.");
         return;
       }
 

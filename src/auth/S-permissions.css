@@ -67,6 +67,41 @@
   filter: brightness(1.12);
 }
 
+.auth-loading-indicator {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: rgba(248, 250, 252, 0.75);
+  font-size: 13px;
+}
+
+.auth-loading-indicator span {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(248, 250, 252, 0.28);
+  border-top-color: #93c5fd;
+  border-radius: 50%;
+  animation: auth-status-spin 0.8s linear infinite;
+}
+
+.auth-status-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+
+.auth-status-actions button {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+@keyframes auth-status-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 480px) {
   .permission-modal {
     grid-template-columns: 1fr;
@@ -75,5 +110,9 @@
 
   .permission-icon {
     margin: 0 auto;
+  }
+
+  .auth-status-actions {
+    flex-direction: column;
   }
 }
