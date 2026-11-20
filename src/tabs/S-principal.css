@@ -951,6 +951,21 @@
   white-space: nowrap;
 }
 
+.assignee-status {
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(248, 250, 252, 0.65);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.assignee-status.suspended {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(120, 53, 15, 0.22);
+  color: #fde68a;
+}
+
 .reminder-input-row {
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr);

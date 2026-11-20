@@ -1,0 +1,26 @@
+.login .auth-back-link,
+.registro .auth-back-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: fit-content;
+    margin: 12px auto 0;
+    color: #e0f2fe;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    text-decoration: none;
+    text-shadow:
+        -0.5px 0 rgba(0, 0, 0, 0.75),
+        0.5px 0 rgba(0, 0, 0, 0.75),
+        0 -0.5px rgba(0, 0, 0, 0.75),
+        0 0.5px rgba(0, 0, 0, 0.75);
+}
+
+.login .auth-back-link:hover,
+.registro .auth-back-link:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}

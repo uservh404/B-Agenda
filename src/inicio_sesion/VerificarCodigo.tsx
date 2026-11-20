@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ClipboardEvent, FormEvent, KeyboardEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/useAuth";
+import AuthBackLink from "./AuthBackLink";
 import {
   getRecoveryEmail,
   getRecoveryExpiry,
@@ -255,7 +256,7 @@ function VerificarCodigo() {
               : "Reenviar código"}
         </button>
 
-        <Link to="/recuperar-password">Volver</Link>
+        <AuthBackLink to="/recuperar-password">Volver a recuperación</AuthBackLink>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/useAuth";
 import { clearPasswordRecovery, getVerifiedRecoveryUser } from "../auth/password-recovery";
+import AuthBackLink from "./AuthBackLink";
 import "./S-login.css";
 
 function NuevaPassword() {
@@ -98,7 +99,7 @@ function NuevaPassword() {
           <p>Nueva contraseña</p>
           {error && <p className="login-mensaje login-error" role="alert">{error}</p>}
           <Link to="/recuperar-password">Solicitar un nuevo código</Link>
-          <Link to="/">Volver al inicio de sesión</Link>
+          <AuthBackLink to="/" state={{ returnToLogin: true }}>Volver al inicio de sesión</AuthBackLink>
         </div>
       </div>
     );
@@ -129,7 +130,7 @@ function NuevaPassword() {
           </button>
         </form>}
 
-        <Link to="/">Volver al inicio de sesión</Link>
+        <AuthBackLink to="/" state={{ returnToLogin: true }}>Volver al inicio de sesión</AuthBackLink>
       </div>
     </div>
   );

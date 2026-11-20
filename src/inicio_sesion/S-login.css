@@ -69,6 +69,18 @@
     /* separa un poco las letras */
 }
 
+.login h1,
+.login p:not(.login-error):not(.login-exito),
+.login label,
+.login a,
+.login .login-link-button {
+    text-shadow:
+        -0.5px 0 rgba(0, 0, 0, 0.75),
+        0.5px 0 rgba(0, 0, 0, 0.75),
+        0 -0.5px rgba(0, 0, 0, 0.75),
+        0 0.5px rgba(0, 0, 0, 0.75);
+}
+
 .login p {
     color: #f1f5f9;
     /* da color a las letras */

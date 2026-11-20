@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { clearPasswordRecovery, storeRecoveryRequest } from "../auth/password-recovery";
+import AuthBackLink from "./AuthBackLink";
 import "./S-login.css";
 
 function RecuperarPassword() {
@@ -63,7 +64,7 @@ function RecuperarPassword() {
           </button>
         </form>
 
-        <Link to="/">Volver al inicio de sesión</Link>
+        <AuthBackLink to="/">Volver al inicio de sesión</AuthBackLink>
       </div>
     </div>
   );

@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { UserRoundCheck, UserRoundX } from "lucide-react";
 import Sidebar from "../components/Sidebar";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { useAuth } from "../auth/useAuth";
 import { supabase } from "../lib/supabaseClient";
+import {
+  getAccountSuspensionStatuses,
+  setAccountSuspension,
+  type AccountSuspensionAction,
+} from "../services/account-suspension";
 import "./S-principal.css";
 import "./S-usuarios.css";
 
 type UserRole = "administrador" | "empleado";
 type RoleFilter = "todos" | UserRole;
+type PendingSuspension = { user: AdminUser; action: AccountSuspensionAction };
 
 interface AdminUser {
   id: string;
@@ -49,6 +57,15 @@ function displayRole(role: UserRole) {
   return role === "administrador" ? "Administrador" : "Empleado";
 }
 
+function getEmployeePermissionSummary(user: AdminUser, canManageResources: boolean) {
+  const permissions = [
+    user.can_assign_events ? "Puede asignar eventos" : null,
+    user.can_publish_announcements ? "Puede publicar anuncios" : null,
+    canManageResources ? "Puede administrar recursos" : null,
+  ].filter((permission): permission is string => permission !== null);
+  return permissions.length > 0 ? permissions.join(" · ") : "Sin permisos";
+}
+
 function Usuarios() {
   const { user: currentUser, profile: currentProfile } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -68,10 +85,18 @@ function Usuarios() {
   const [isSaving, setIsSaving] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [suspensionStatuses, setSuspensionStatuses] = useState<Record<string, boolean | null>>({});
+  const [suspensionStatusesLoading, setSuspensionStatusesLoading] = useState(false);
+  const [suspensionStatusesError, setSuspensionStatusesError] = useState("");
+  const [pendingSuspension, setPendingSuspension] = useState<PendingSuspension | null>(null);
+  const [isSuspensionSaving, setIsSuspensionSaving] = useState(false);
+  const [suspensionActionError, setSuspensionActionError] = useState("");
 
   const loadUsers = useCallback(async (): Promise<AdminUser[] | null> => {
     setLoading(true);
     setLoadError("");
+    setSuspensionStatusesLoading(true);
+    setSuspensionStatusesError("");
 
     try {
       const { data, error } = await supabase.rpc("admin_list_users_v2");
@@ -88,13 +113,22 @@ function Usuarios() {
       }
 
       setUsers(data);
+      try {
+        const statuses = await getAccountSuspensionStatuses(data.map((user) => user.id));
+        setSuspensionStatuses(statuses);
+      } catch {
+        setSuspensionStatuses(Object.fromEntries(data.map((user) => [user.id, null])));
+        setSuspensionStatusesError("No se pudo comprobar el estado de suspensión desde Supabase Auth. Las acciones están bloqueadas.");
+      }
       return data;
     } catch {
       setUsers([]);
+      setSuspensionStatuses({});
       setLoadError("Ocurrió un error al consultar los usuarios. Inténtalo nuevamente.");
       return null;
     } finally {
       setLoading(false);
+      setSuspensionStatusesLoading(false);
     }
   }, []);
 
@@ -146,6 +180,52 @@ function Usuarios() {
       : null);
     setActionMessage("");
     setActionError("");
+  };
+
+  const openSuspensionConfirmation = (user: AdminUser) => {
+    const suspended = suspensionStatuses[user.id];
+    if (
+      currentProfile?.role !== "administrador"
+      || user.role !== "empleado"
+      || user.id === currentUser?.id
+      || typeof suspended !== "boolean"
+      || suspensionStatusesLoading
+      || isSuspensionSaving
+    ) return;
+
+    setPendingSuspension({ user, action: suspended ? "reactivate" : "suspend" });
+    setSuspensionActionError("");
+    setActionMessage("");
+    setActionError("");
+  };
+
+  const handleSuspensionConfirmation = async () => {
+    if (!pendingSuspension || isSuspensionSaving) return;
+    setIsSuspensionSaving(true);
+    setSuspensionActionError("");
+
+    try {
+      const suspended = await setAccountSuspension(
+        pendingSuspension.user.id,
+        pendingSuspension.action,
+      );
+      setSuspensionStatuses((current) => ({
+        ...current,
+        [pendingSuspension.user.id]: suspended,
+      }));
+      setActionMessage(pendingSuspension.action === "suspend"
+        ? "La cuenta fue suspendida. Las sesiones abiertas pueden seguir activas hasta expirar."
+        : "La cuenta fue reactivada y podrá iniciar sesión nuevamente.");
+      setPendingSuspension(null);
+    } catch (error) {
+      setSuspensionActionError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el estado de la cuenta. Inténtalo nuevamente.",
+      );
+    } finally {
+      setIsSuspensionSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -304,28 +384,63 @@ function Usuarios() {
                     <h3>{user.full_name}</h3>
                     <p>{user.email}</p>
                     <p>{user.phone || "Teléfono no registrado"}</p>
+                    <span className={`user-account-status ${
+                      suspensionStatuses[user.id] === true
+                        ? "suspended"
+                        : suspensionStatuses[user.id] === false
+                          ? "active"
+                          : "unknown"
+                    }`}>
+                      {suspensionStatusesLoading
+                        ? "Consultando estado"
+                        : suspensionStatuses[user.id] === true
+                          ? "Suspendido"
+                          : suspensionStatuses[user.id] === false
+                            ? "Activo"
+                            : "Estado no disponible"}
+                    </span>
                   </div>
                   <span className={`user-role role-${user.role}`}>{displayRole(user.role)}</span>
                   <span className="admin-event-permission">
                     {user.role === "administrador"
                       ? "Todos los permisos administrativos habilitados"
-                      : user.can_assign_events ? "Puede asignar eventos" : "Sin permiso para asignar"}
+                      : !resourcePermissionsLoaded
+                        ? resourcePermissionError ? "Permisos no disponibles" : "Consultando permisos..."
+                        : getEmployeePermissionSummary(
+                          user,
+                          resourcePermissions[user.id] ?? false,
+                        )}
                   </span>
                   <div className="user-actions">
                     <button type="button" className="user-view-button" onClick={() => openUser(user)}>
                       Ver y administrar
                     </button>
-                    <button
-                      type="button"
-                      className="user-delete-button"
-                      disabled
-                    >
-                      Eliminar
-                    </button>
+                    {currentProfile?.role === "administrador"
+                      && user.role === "empleado"
+                      && user.id !== currentUser?.id
+                      && typeof suspensionStatuses[user.id] === "boolean" && (
+                        <button
+                          type="button"
+                          className={`user-suspension-button ${
+                            suspensionStatuses[user.id] ? "reactivate" : "suspend"
+                          }`}
+                          aria-label={`${suspensionStatuses[user.id] ? "Reactivar" : "Suspender"} cuenta de ${user.full_name}`}
+                          title={`${suspensionStatuses[user.id] ? "Reactivar" : "Suspender"} cuenta`}
+                          onClick={() => openSuspensionConfirmation(user)}
+                          disabled={suspensionStatusesLoading || isSuspensionSaving}
+                        >
+                          {suspensionStatuses[user.id]
+                            ? <UserRoundCheck size={18} aria-hidden="true" />
+                            : <UserRoundX size={18} aria-hidden="true" />}
+                        </button>
+                      )}
                   </div>
                 </article>
               ))}
             </div>
+          )}
+          {suspensionStatusesError && (
+            <p className="users-error-message" role="status">{suspensionStatusesError}</p>
           )}
         </section>
       </main>
@@ -342,6 +457,16 @@ function Usuarios() {
             <h2 id="user-modal-title">{selectedUser.full_name}</h2>
             <p><strong>Correo:</strong> {selectedUser.email}</p>
             <p><strong>Teléfono:</strong> {selectedUser.phone || "No registrado"}</p>
+            <p>
+              <strong>Estado:</strong>{" "}
+              {suspensionStatusesLoading
+                ? "Consultando"
+                : suspensionStatuses[selectedUser.id] === true
+                  ? "Suspendido"
+                  : suspensionStatuses[selectedUser.id] === false
+                    ? "Activo"
+                    : "No disponible"}
+            </p>
             <label className="user-edit-field" htmlFor="user-role">Rol</label>
             <select
               id="user-role"
@@ -413,11 +538,29 @@ function Usuarios() {
             >
               {isSaving ? "Guardando..." : "Guardar cambios"}
             </button>
-            <button type="button" className="user-delete-button modal-delete" disabled>
-              Eliminar usuario
-            </button>
           </section>
         </div>
+      )}
+      {pendingSuspension && (
+        <ConfirmDialog
+          title={pendingSuspension.action === "suspend" ? "Suspender cuenta" : "Reactivar cuenta"}
+          message={pendingSuspension.action === "suspend"
+            ? `¿Quieres suspender la cuenta de ${pendingSuspension.user.full_name}? Se bloquearán nuevos inicios de sesión.`
+            : `¿Quieres reactivar la cuenta de ${pendingSuspension.user.full_name}? Podrá iniciar sesión nuevamente.`}
+          detail={pendingSuspension.action === "suspend"
+            ? "Las sesiones que ya estén abiertas no se cerrarán inmediatamente."
+            : undefined}
+          errorMessage={suspensionActionError}
+          confirmLabel={pendingSuspension.action === "suspend" ? "Suspender cuenta" : "Reactivar cuenta"}
+          confirmingLabel={pendingSuspension.action === "suspend" ? "Suspendiendo..." : "Reactivando..."}
+          isConfirming={isSuspensionSaving}
+          onCancel={() => {
+            if (isSuspensionSaving) return;
+            setPendingSuspension(null);
+            setSuspensionActionError("");
+          }}
+          onConfirm={() => { void handleSuspensionConfirmation(); }}
+        />
       )}
     </div>
   );

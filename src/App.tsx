@@ -49,6 +49,8 @@ function AuthStatusScreen({ title, message, action }: { title: string; message: 
 
 function EntryRoute() {
   const { status, error, refreshAuth, signOut } = useAuth();
+  const location = useLocation();
+  const returnToLogin = (location.state as { returnToLogin?: boolean } | null)?.returnToLogin === true;
 
   if (status === "loading") {
     return (
@@ -58,6 +60,10 @@ function EntryRoute() {
         action={<span className="auth-loading-indicator" aria-live="polite"><span aria-hidden="true" />Comprobando...</span>}
       />
     );
+  }
+
+  if (returnToLogin) {
+    return <Login />;
   }
 
   if (status === "authenticated") {

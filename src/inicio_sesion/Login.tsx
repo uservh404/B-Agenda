@@ -31,9 +31,13 @@ function Login() {
       });
 
       if (signInError) {
-        setError(signInError.code === "email_not_confirmed"
-          ? "Confirma tu correo electrónico antes de iniciar sesión."
-          : "Correo o contraseña incorrectos. Verifica tus datos e inténtalo nuevamente.");
+        if (signInError.code === "user_banned") {
+          setError("Cuenta suspendida. Comunícate con el administrador para solicitar su reactivación.");
+        } else if (signInError.code === "email_not_confirmed") {
+          setError("Confirma tu correo electrónico antes de iniciar sesión.");
+        } else {
+          setError("Correo o contraseña incorrectos. Verifica tus datos e inténtalo nuevamente.");
+        }
         return;
       }
 

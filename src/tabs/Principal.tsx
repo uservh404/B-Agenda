@@ -12,6 +12,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import EventSummaryDialog from "../components/EventSummaryDialog";
 import { useAuth } from "../auth/useAuth";
 import { hasAdministrativePermission } from "../auth/auth-context";
+import { getAccountSuspensionStatuses } from "../services/account-suspension";
 import {
   cancelCalendarEvent,
   getCalendarOperationMessage,
@@ -114,6 +115,7 @@ function Principal() {
   const [confirmedEvents, setConfirmedEvents] = useState<CalendarEvent[]>([]);
   const [calendarOperations, setCalendarOperations] = useState<CalendarOutboxOperation[]>([]);
   const [assignableUsers, setAssignableUsers] = useState<AssignableWorker[]>([]);
+  const [participantSuspensionStatuses, setParticipantSuspensionStatuses] = useState<Record<string, boolean>>({});
   const [hasCachedAssignableUsers, setHasCachedAssignableUsers] = useState(false);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
@@ -154,6 +156,25 @@ function Principal() {
   const syncingUserIds = useRef(new Set<string>());
   const activeAuthenticatedUserId = useRef("");
   const eventPendingDeletion = events.find((event) => event.id === eventToDelete);
+  const editingEvent = events.find((event) => event.id === editingEventId);
+  const editingParticipantIdsKey = editingEvent?.assignedWorkers.map((worker) => worker.id).join(",") ?? "";
+  const assignableUserIds = new Set(assignableUsers.map((worker) => worker.id));
+  const historicalUnavailableParticipants = (editingEvent?.assignedWorkers ?? [])
+    .filter((worker) => !assignableUserIds.has(worker.id));
+  const participantOptions = [
+    ...assignableUsers.map((worker) => ({
+      worker,
+      role: worker.role,
+      isAssignable: true,
+      isSuspended: false,
+    })),
+    ...historicalUnavailableParticipants.map((worker) => ({
+      worker,
+      role: null,
+      isAssignable: false,
+      isSuspended: participantSuspensionStatuses[worker.id] === true,
+    })),
+  ];
   const currentUserId = profile?.id ?? user?.id ?? "";
   const lastSuccessfulSyncAt = lastSuccessfulSyncState.userId === currentUserId
     ? lastSuccessfulSyncState.at
@@ -601,11 +622,25 @@ function Principal() {
       if (!active) return;
       setIsLoadingWorkers(true);
       setWorkerLoadError("");
+      setParticipantSuspensionStatuses({});
       if (canAssignEvents && assignerProfileId) {
         void listAssignableWorkers(assignerProfileId).then(async (workers) => {
           if (!active) return;
           setAssignableUsers(workers);
           setHasCachedAssignableUsers(true);
+          const assignableIds = new Set(workers.map((worker) => worker.id));
+          const historicalUnavailableIds = editingParticipantIdsKey
+            .split(",")
+            .filter((userId) => userId && !assignableIds.has(userId));
+          if (profile?.role === "administrador" && historicalUnavailableIds.length > 0) {
+            void getAccountSuspensionStatuses(historicalUnavailableIds)
+              .then((statuses) => {
+                if (active) setParticipantSuspensionStatuses(statuses);
+              })
+              .catch(() => {
+                if (active) setParticipantSuspensionStatuses({});
+              });
+          }
           try {
             await saveAuthorizedAssignableWorkers(currentUserId, workers);
           } catch {
@@ -643,7 +678,15 @@ function Principal() {
     return () => {
       active = false;
     };
-  }, [modalOpen, canAssignEvents, canEditPersonalOffline, assignerProfileId, currentUserId]);
+  }, [
+    modalOpen,
+    canAssignEvents,
+    canEditPersonalOffline,
+    assignerProfileId,
+    currentUserId,
+    editingParticipantIdsKey,
+    profile?.role,
+  ]);
 
   const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
@@ -687,6 +730,7 @@ function Principal() {
     setEditingEventId(null);
     setDraftEventId((current) => current ?? crypto.randomUUID());
     setAssignableUsers([]);
+    setParticipantSuspensionStatuses({});
     setHasCachedAssignableUsers(false);
     setIsLoadingWorkers(true);
     setWorkerLoadError("");
@@ -1279,6 +1323,7 @@ function Principal() {
     }
     setEditingEventId(event.id);
     setAssignableUsers([]);
+    setParticipantSuspensionStatuses({});
     setHasCachedAssignableUsers(false);
     setIsLoadingWorkers(true);
     setWorkerLoadError("");
@@ -2002,33 +2047,41 @@ function Principal() {
                   <p className="assignees-empty">Cargando trabajadores...</p>
                 ) : workerLoadError ? (
                   <p className="assignees-empty" role="alert">{workerLoadError}</p>
-                ) : assignableUsers.length === 0 ? (
+                ) : participantOptions.length === 0 ? (
                   <p className="assignees-empty">No hay usuarios registrados para asignar.</p>
                 ) : (
                   <div className="assignees-list" role="group" aria-label="Trabajadores disponibles">
-                    {assignableUsers.map((assignableUser) => {
-                      const isAssigned = formData.assignedWorkerIds.includes(assignableUser.id);
+                    {participantOptions.map(({ worker, role, isAssignable, isSuspended }) => {
+                      const isAssigned = formData.assignedWorkerIds.includes(worker.id);
                       return (
-                        <label className={`assignee-option ${isAssigned ? "selected" : ""}`} key={assignableUser.id}>
+                        <label className={`assignee-option ${isAssigned ? "selected" : ""}`} key={worker.id}>
                           <input
                             type="checkbox"
                             checked={isAssigned}
+                            disabled={!isAssignable && !isAssigned}
                             onChange={() => {
+                              if (!isAssignable && !isAssigned) return;
                               setFormData((current) => ({
                                 ...current,
                                 assignedWorkerIds: isAssigned
-                                  ? current.assignedWorkerIds.filter((id) => id !== assignableUser.id)
-                                  : [...current.assignedWorkerIds, assignableUser.id],
+                                  ? current.assignedWorkerIds.filter((id) => id !== worker.id)
+                                  : [...current.assignedWorkerIds, worker.id],
                               }));
                             }}
                           />
-                          <span className="assignee-avatar" aria-hidden="true">{assignableUser.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span>
+                          <span className="assignee-avatar" aria-hidden="true">{worker.name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("")}</span>
                           <span className="assignee-information">
-                            <strong>{assignableUser.name}</strong>
+                            <strong>{worker.name}</strong>
                           </span>
-                          <span className="assignee-role">
-                            {assignableUser.role === "administrador" ? "Administrador" : "Empleado"}
-                          </span>
+                          {role ? (
+                            <span className="assignee-role">
+                              {role === "administrador" ? "Administrador" : "Empleado"}
+                            </span>
+                          ) : (
+                            <span className={`assignee-status ${isSuspended ? "suspended" : ""}`}>
+                              {isSuspended ? "Suspendido" : "No disponible"}
+                            </span>
+                          )}
                         </label>
                       );
                     })}

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ClipboardEvent, KeyboardEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
+import AuthBackLink from "./AuthBackLink";
 import "./S-login.css";
 
 const CODE_TTL_MS = 5 * 60 * 1000;
@@ -218,7 +219,7 @@ function VerificarRegistro() {
           {isResending ? "Enviando..." : "Reenviar código"}
         </button>
 
-        <Link to="/registro">Volver al registro</Link>
+        <AuthBackLink to="/registro">Volver al registro</AuthBackLink>
       </div>
     </div>
   );

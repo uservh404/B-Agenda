@@ -149,10 +149,11 @@
 }
 
 .admin-event-permission {
+  max-width: 230px;
   color: #fde68a;
   font-size: 11px;
   font-weight: 700;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .role-administrador {
@@ -172,8 +173,7 @@
   gap: 8px;
 }
 
-.user-actions button,
-.modal-delete {
+.user-actions button {
   border: 0;
   border-radius: 9px;
   padding: 9px 11px;
@@ -187,8 +187,61 @@
   background: rgba(59, 130, 246, 0.7);
 }
 
-.user-delete-button {
-  background: rgba(220, 38, 38, 0.72);
+.user-account-status {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.user-account-status.active {
+  border-color: rgba(52, 211, 153, 0.32);
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+}
+
+.user-account-status.suspended {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(245, 158, 11, 0.13);
+  color: #fde68a;
+}
+
+.user-account-status.unknown {
+  border-color: rgba(203, 213, 225, 0.2);
+  background: rgba(148, 163, 184, 0.1);
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.user-suspension-button {
+  display: inline-flex;
+  width: 38px;
+  min-width: 38px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px !important;
+}
+
+.user-suspension-button.suspend {
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(220, 38, 38, 0.24);
+  color: #fecaca;
+}
+
+.user-suspension-button.reactivate {
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  background: rgba(16, 185, 129, 0.2);
+  color: #a7f3d0;
+}
+
+.user-suspension-button:focus-visible {
+  outline: 2px solid #bfdbfe;
+  outline-offset: 2px;
 }
 
 .user-actions button:disabled,
@@ -256,8 +309,7 @@
   text-align: center;
 }
 
-.user-actions button:hover,
-.modal-delete:hover {
+.user-actions button:hover {
   filter: brightness(1.15);
 }
 

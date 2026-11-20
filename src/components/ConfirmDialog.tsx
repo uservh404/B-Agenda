@@ -6,6 +6,7 @@ interface ConfirmDialogProps {
   detail?: string;
   errorMessage?: string;
   confirmLabel?: string;
+  confirmingLabel?: string;
   isConfirming?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -17,6 +18,7 @@ function ConfirmDialog({
   detail,
   errorMessage,
   confirmLabel = "Eliminar",
+  confirmingLabel = "Eliminando...",
   isConfirming = false,
   onCancel,
   onConfirm,
@@ -32,7 +34,7 @@ function ConfirmDialog({
         <div className="confirm-actions">
           <button type="button" className="confirm-cancel" onClick={onCancel} disabled={isConfirming}>Cancelar</button>
           <button type="button" className="confirm-delete" onClick={onConfirm} disabled={isConfirming}>
-            {isConfirming ? "Eliminando..." : confirmLabel}
+            {isConfirming ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </section>
