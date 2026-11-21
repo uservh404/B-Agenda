@@ -2118,7 +2118,7 @@ function Principal() {
                 <div className="reminder-heading">
                   <div>
                     <h4 id="reminder-title">Alerta</h4>
-                    <p>Las notificaciones automáticas estarán disponibles más adelante.</p>
+                    <p>Recibirás una notificación en Windows con la anticipación configurada.</p>
                   </div>
                   <button
                     className={`reminder-switch ${formData.reminderEnabled ? "enabled" : ""}`}

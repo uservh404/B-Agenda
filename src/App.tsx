@@ -29,6 +29,7 @@ import Recursos from "./tabs/Recursos";
 import Usuarios from "./tabs/Usuarios";
 import Configuracion from "./tabs/Configuracion";
 import Notificaciones from "./tabs/Notificaciones";
+import EventReminderManager from "./components/EventReminderManager";
 import { useAuth } from "./auth/useAuth";
 import "./auth/S-permissions.css";
 
@@ -151,6 +152,8 @@ function AuthenticatedRoute({ children, administratorOnly = false }: { children:
 
 function App() {
   return (
+    <>
+    <EventReminderManager />
     <Routes>
       {/* Route = ruta.
           path = camino o dirección.
@@ -184,6 +187,7 @@ function App() {
       <Route path="/usuarios" element={<AuthenticatedRoute administratorOnly><Usuarios /></AuthenticatedRoute>} />
       <Route path="/configuracion" element={<AuthenticatedRoute><Configuracion /></AuthenticatedRoute>} />
     </Routes>
+    </>
   );
 }
 

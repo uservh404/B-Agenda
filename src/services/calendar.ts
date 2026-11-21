@@ -75,28 +75,71 @@ export type CalendarRealtimeStatus =
   | "CLOSED"
   | "CHANNEL_ERROR";
 
+interface CalendarChangeListener {
+  onChange: () => void;
+  onStatus: (status: CalendarRealtimeStatus) => void;
+}
+
+interface CalendarChangeSubscriptionEntry {
+  channel: RealtimeChannel;
+  listeners: Map<number, CalendarChangeListener>;
+}
+
+export interface CalendarChangesSubscription {
+  userId: string;
+  listenerId: number;
+}
+
+const calendarChangeSubscriptions = new Map<string, CalendarChangeSubscriptionEntry>();
+let calendarChangeListenerSequence = 0;
+
 export function subscribeToCalendarChanges(
   userId: string,
   onChange: () => void,
   onStatus: (status: CalendarRealtimeStatus) => void,
-): RealtimeChannel {
-  return supabase
-    .channel(`calendar-changes:${userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "event_sync_changes",
-        filter: `user_id=eq.${userId}`,
-      },
-      () => onChange(),
-    )
-    .subscribe((status) => onStatus(status));
+): CalendarChangesSubscription {
+  const listenerId = ++calendarChangeListenerSequence;
+  let subscription = calendarChangeSubscriptions.get(userId);
+  const isNewSubscription = !subscription;
+
+  if (!subscription) {
+    const listeners = new Map<number, CalendarChangeListener>();
+    const channel = supabase
+      .channel(`calendar-changes:${userId}:${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "event_sync_changes",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          for (const listener of listeners.values()) listener.onChange();
+        },
+      );
+    subscription = { channel, listeners };
+    calendarChangeSubscriptions.set(userId, subscription);
+  }
+
+  subscription.listeners.set(listenerId, { onChange, onStatus });
+  if (isNewSubscription) {
+    subscription.channel.subscribe((status) => {
+      for (const listener of subscription.listeners.values()) listener.onStatus(status);
+    });
+  }
+  return { userId, listenerId };
 }
 
-export function removeCalendarChangesSubscription(channel: RealtimeChannel) {
-  return supabase.removeChannel(channel);
+export async function removeCalendarChangesSubscription(
+  handle: CalendarChangesSubscription,
+): Promise<void> {
+  const subscription = calendarChangeSubscriptions.get(handle.userId);
+  if (!subscription || !subscription.listeners.delete(handle.listenerId)) return;
+  if (subscription.listeners.size > 0) return;
+
+  calendarChangeSubscriptions.delete(handle.userId);
+  await supabase.removeChannel(subscription.channel);
 }
 
 export async function listCalendarEvents(): Promise<{
