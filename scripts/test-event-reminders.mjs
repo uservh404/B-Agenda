@@ -64,6 +64,33 @@ const startReminder = createEventReminderSchedules(
 assert.equal(startReminder.dueAtMs, start.getTime());
 assert.match(startReminder.body, /comienza ahora/);
 
+const explicitStartReminder = createEventReminderSchedules(
+  [{ ...event, reminderEnabled: false, reminderMode: "start" }],
+  userId,
+  start.getTime() + 30_000,
+)[0];
+assert.equal(explicitStartReminder.dueAtMs, start.getTime());
+assert.match(explicitStartReminder.body, /comienza ahora/);
+
+const disabledReminders = createEventReminderSchedules(
+  [{ ...event, reminderEnabled: false, reminderMode: "off" }],
+  userId,
+  start.getTime() - 3_600_000,
+);
+assert.equal(disabledReminders.length, 0);
+assert.equal(createEventReminderSchedules(
+  [{ ...event, reminderEnabled: false, reminderMode: "off" }],
+  userId,
+  start.getTime() + 30_000,
+).length, 0);
+
+const reenabledReminder = createEventReminderSchedules(
+  [{ ...event, reminderMode: "anticipation" }],
+  userId,
+  start.getTime() - 3_600_000,
+)[0];
+assert.equal(reenabledReminder.dueAtMs, minutesReminder.dueAtMs);
+
 assert.equal(createEventReminderSchedules([event], otherUserId, start.getTime() - 3_600_000).length, 1);
 assert.equal(createEventReminderSchedules([event], unrelatedUserId, start.getTime() - 3_600_000).length, 0);
 assert.equal(createEventReminderSchedules(

@@ -1,4 +1,5 @@
 export type ReminderUnit = "minutes" | "hours" | "days" | "weeks";
+export type ReminderMode = "off" | "start" | "anticipation";
 
 export interface CalendarPerson {
   id: string;
@@ -15,6 +16,7 @@ export interface CalendarEvent {
   reminderEnabled: boolean;
   reminderValue: number;
   reminderUnit: ReminderUnit;
+  reminderMode?: ReminderMode | null;
   createdBy: CalendarPerson;
   assignedWorkers: CalendarPerson[];
   category: string;
@@ -39,6 +41,7 @@ export interface SaveCalendarEventInput {
   reminderEnabled: boolean;
   reminderValue: number | null;
   reminderUnit: ReminderUnit | null;
+  reminderMode?: ReminderMode | null;
   resolvesOperationId?: string | null;
 }
 

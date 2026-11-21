@@ -85,6 +85,7 @@ export function createEventReminderSchedules(
   const seenEventIds = new Set<string>();
 
   for (const event of events) {
+    if (event.reminderMode === "off") continue;
     if (
       excludedEventIds.has(event.id)
       || seenEventIds.has(event.id)
@@ -99,10 +100,17 @@ export function createEventReminderSchedules(
     const start = getLocalStart(event);
     if (!start) continue;
 
-    const hasAnticipation = event.reminderEnabled
+    const hasAnticipation = event.reminderMode === "start"
+      ? false
+      : event.reminderMode === "anticipation"
+        ? Number.isInteger(event.reminderValue)
+          && event.reminderValue > 0
+          && Object.hasOwn(UNIT_LABELS, event.reminderUnit)
+        : event.reminderEnabled
       && Number.isInteger(event.reminderValue)
       && event.reminderValue > 0
       && Object.hasOwn(UNIT_LABELS, event.reminderUnit);
+    if (event.reminderMode === "anticipation" && !hasAnticipation) continue;
     const due = hasAnticipation
       ? getReminderDate(start, event.reminderValue, event.reminderUnit)
       : start;

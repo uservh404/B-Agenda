@@ -161,6 +161,11 @@ function isCalendarEventForUser(value: unknown, userId: string): value is Calend
       || event.reminderUnit === "hours"
       || event.reminderUnit === "days"
       || event.reminderUnit === "weeks")
+    && (event.reminderMode === undefined
+      || event.reminderMode === null
+      || event.reminderMode === "off"
+      || event.reminderMode === "start"
+      || event.reminderMode === "anticipation")
     && !!event.createdBy
     && typeof event.createdBy.id === "string"
     && typeof event.createdBy.name === "string"

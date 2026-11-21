@@ -21,6 +21,7 @@ interface EventRow {
   reminder_enabled: boolean;
   reminder_value: number | null;
   reminder_unit: "minutes" | "hours" | "days" | "weeks" | null;
+  reminder_mode: "off" | "start" | "anticipation" | null;
 }
 
 interface ParticipantRow {
@@ -148,7 +149,7 @@ export async function listCalendarEvents(): Promise<{
 }> {
   const { data: eventData, error: eventError } = await supabase
     .from("events")
-    .select("id, owner_id, title, description, category, event_date, start_time, end_time, status, version, reminder_enabled, reminder_value, reminder_unit")
+    .select("id, owner_id, title, description, category, event_date, start_time, end_time, status, version, reminder_enabled, reminder_value, reminder_unit, reminder_mode")
     .eq("status", "confirmed")
     .order("event_date", { ascending: true })
     .order("start_time", { ascending: true });
@@ -266,6 +267,7 @@ export async function listCalendarEvents(): Promise<{
     reminderEnabled: event.reminder_enabled,
     reminderValue: event.reminder_value ?? 0,
     reminderUnit: event.reminder_unit ?? "minutes",
+    reminderMode: event.reminder_mode,
     createdBy: {
       id: event.owner_id,
       name: organizerNames.get(event.owner_id) ?? "Nombre no disponible",
@@ -313,7 +315,7 @@ export async function listAssignableWorkers(currentUserId: string): Promise<Assi
 }
 
 async function runEventOperation(
-  operation: "save_event" | "cancel_event",
+  operation: "save_event_with_reminder_mode" | "cancel_event",
   parameters: Record<string, unknown>,
 ): Promise<CalendarOperationResult> {
   const { data, error } = await supabase.rpc(operation, parameters);
@@ -336,7 +338,7 @@ async function runEventOperation(
 }
 
 export function saveCalendarEvent(input: SaveCalendarEventInput) {
-  return runEventOperation("save_event", {
+  return runEventOperation("save_event_with_reminder_mode", {
     p_operation_id: input.operationId,
     p_event_id: input.eventId,
     p_expected_version: input.expectedVersion,
@@ -350,6 +352,7 @@ export function saveCalendarEvent(input: SaveCalendarEventInput) {
     p_reminder_enabled: input.reminderEnabled,
     p_reminder_value: input.reminderValue,
     p_reminder_unit: input.reminderUnit,
+    p_reminder_mode: input.reminderMode ?? null,
     p_resolves_operation_id: input.resolvesOperationId ?? null,
   });
 }

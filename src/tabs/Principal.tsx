@@ -45,6 +45,7 @@ import type {
   CalendarEvent,
   CalendarOutboxOperation,
   CalendarOutboxSaveOperation,
+  ReminderMode,
   ReminderUnit,
   SaveCalendarEventInput,
 } from "../types/calendar";
@@ -145,6 +146,7 @@ function Principal() {
     reminderEnabled: false,
     reminderValue: 15,
     reminderUnit: "minutes" as ReminderUnit,
+    reminderMode: "off" as ReminderMode | null,
     assignedWorkerIds: [] as string[],
     description: "",
     category: "",
@@ -741,6 +743,7 @@ function Principal() {
       reminderEnabled: false,
       reminderValue: 15,
       reminderUnit: "minutes",
+      reminderMode: "off",
       assignedWorkerIds: [],
       description: "",
       category: "",
@@ -864,8 +867,8 @@ function Principal() {
       return;
     }
 
-    if (formData.reminderEnabled && (!Number.isInteger(formData.reminderValue) || formData.reminderValue < 1)) {
-      setFormError("La alerta debe configurarse con al menos una unidad.");
+    if (formData.reminderEnabled && (!Number.isInteger(formData.reminderValue) || formData.reminderValue < 0)) {
+      setFormError("La anticipación debe ser cero o mayor.");
       return;
     }
 
@@ -963,9 +966,14 @@ function Principal() {
           : isSharedEventUpdate || (existingEvent && !isPersonalEvent(existingEvent))
             ? null
             : canSyncCalendar ? null : [],
-      reminderEnabled: formData.reminderEnabled,
-      reminderValue: formData.reminderEnabled ? formData.reminderValue : null,
-      reminderUnit: formData.reminderEnabled ? formData.reminderUnit : null,
+      reminderEnabled: formData.reminderEnabled && formData.reminderValue > 0,
+      reminderValue: formData.reminderEnabled && formData.reminderValue > 0
+        ? formData.reminderValue
+        : null,
+      reminderUnit: formData.reminderEnabled && formData.reminderValue > 0
+        ? formData.reminderUnit
+        : null,
+      reminderMode: formData.reminderMode,
       resolvesOperationId: isSharedEventUpdate
         ? sharedUpdateResolvesOperationId
         : resolvesOperationId,
@@ -1005,8 +1013,9 @@ function Principal() {
         startTime: request.startTime,
         endTime: request.endTime,
         reminderEnabled: request.reminderEnabled,
-        reminderValue: request.reminderValue ?? 0,
+        reminderValue: request.reminderValue ?? (request.reminderMode === "start" ? 0 : formData.reminderValue),
         reminderUnit: request.reminderUnit ?? "minutes",
+        reminderMode: request.reminderMode,
         createdBy: { id: currentUserId, name: ownerName },
         assignedWorkers: queueSharedDraft || queueSharedUpdate
           ? formData.assignedWorkerIds.flatMap((id) => {
@@ -1331,9 +1340,12 @@ function Principal() {
       title: event.title,
       startTime: event.startTime,
       endTime: event.endTime,
-      reminderEnabled: event.reminderEnabled,
-      reminderValue: event.reminderValue,
+      reminderEnabled: event.reminderMode === "start" || event.reminderEnabled,
+      reminderValue: event.reminderMode === "start"
+        ? 0
+        : event.reminderMode === "off" ? 15 : event.reminderValue,
       reminderUnit: event.reminderUnit,
+      reminderMode: event.reminderMode ?? (event.reminderEnabled ? "anticipation" : null),
       assignedWorkerIds: event.assignedWorkers.map((employee) => employee.id),
       description: event.description,
       category: event.category,
@@ -1678,9 +1690,11 @@ function Principal() {
                       ⏰ {formatEventTime(event.startTime)} - {formatEventTime(event.endTime)}
                       {eventEndsNextDay(event) && <span className="event-next-day-label"> · día siguiente</span>}
                     </p>
-                    {event.reminderEnabled && (
+                    {(event.reminderEnabled || event.reminderMode === "start") && (
                       <span className="event-reminder-pill">
-                        Anticipación: {event.reminderValue} {reminderUnitLabels[event.reminderUnit][event.reminderValue === 1 ? 0 : 1]}
+                        {event.reminderMode === "start"
+                          ? "Al comenzar"
+                          : `Anticipación: ${event.reminderValue} ${reminderUnitLabels[event.reminderUnit][event.reminderValue === 1 ? 0 : 1]}`}
                       </span>
                     )}
 
@@ -2126,22 +2140,40 @@ function Principal() {
                     role="switch"
                     aria-checked={formData.reminderEnabled}
                     aria-label="Activar alerta para este evento"
-                    onClick={() => setFormData({ ...formData, reminderEnabled: !formData.reminderEnabled })}
+                    onClick={() => {
+                      const reminderEnabled = !formData.reminderEnabled;
+                      setFormData({
+                        ...formData,
+                        reminderEnabled,
+                        reminderMode: reminderEnabled
+                          ? formData.reminderValue === 0 ? "start" : "anticipation"
+                          : "off",
+                      });
+                    }}
                   >
                     <span />
                   </button>
                 </div>
                 <div className={`reminder-controls ${formData.reminderEnabled ? "" : "disabled"}`}>
-                  <label htmlFor="reminder-value">Avisarme</label>
+                  <label htmlFor="reminder-value">Anticipación (0 = al comenzar)</label>
                   <div className="reminder-input-row">
                     <input
                       id="reminder-value"
                       type="number"
-                      min="1"
+                      min="0"
                       max="999"
                       value={formData.reminderValue}
                       disabled={!formData.reminderEnabled}
-                      onChange={(event) => setFormData({ ...formData, reminderValue: Number(event.target.value) })}
+                      onChange={(event) => {
+                        const reminderValue = Number(event.target.value);
+                        setFormData({
+                          ...formData,
+                          reminderValue,
+                          reminderMode: formData.reminderEnabled
+                            ? reminderValue === 0 ? "start" : "anticipation"
+                            : formData.reminderMode,
+                        });
+                      }}
                     />
                     <select
                       aria-label="Unidad de tiempo de la alerta"
