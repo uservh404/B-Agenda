@@ -2,8 +2,8 @@
   display: flex;
   min-height: 100vh;
   font-family: Arial, sans-serif;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.75)),
-    url("../assets/Fondo1.jpeg") center/cover no-repeat;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.86), rgba(30, 41, 59, 0.75)),
+    url("../assets/Fondo1.jpeg") center/cover fixed no-repeat;
   color: #f8fafc;
 }
 
