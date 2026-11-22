@@ -328,7 +328,7 @@ function Usuarios() {
           <div>
             <span className="users-eyebrow">Administración</span>
             <h1>Usuarios registrados</h1>
-            <p>Consulta y administra las personas que tienen acceso a la biblioteca.</p>
+            <p>Consulta las cuentas registradas y administra sus permisos.</p>
           </div>
           <div className="users-total">
             <strong>{users.length}</strong>

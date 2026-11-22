@@ -719,8 +719,9 @@ function Recursos() {
         <div className="recursos-shell">
           <header className="recursos-header">
             <div>
-              <span className="eyebrow">Inventario</span>
+              <span className="eyebrow resources-eyebrow">Inventario</span>
               <h1>Recursos</h1>
+              <p>Consulta y administra los recursos disponibles.</p>
             </div>
 
             {canManage && !isLoadingPermission && (
@@ -1104,7 +1105,7 @@ function Recursos() {
               <div className="modal-actions">
                 <button
                   type="button"
-                  className="secondary-btn"
+                  className="secondary-btn form-visual-cancel"
                   disabled={isSaving}
                   onClick={() => {
                     setEditingId(null);
@@ -1118,7 +1119,7 @@ function Recursos() {
                 </button>
                 <button
                   type="button"
-                  className="primary-btn"
+                  className="primary-btn form-visual-save"
                   onClick={() => { void handleSave(); }}
                   disabled={isSaving || !canManage}
                 >

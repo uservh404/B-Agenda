@@ -203,7 +203,7 @@ function getNotificationEventDetailsWithTimeout(notificationId: string) {
 }
 
 function Notificaciones() {
-  const { profile, user } = useAuth();
+  const { user } = useAuth();
   const userId = user?.id ?? "";
   const identity = useMemo(() => getIdentity(userId), [userId]);
   const [cache, setCache] = useState<NotificationCacheBundle>(emptyBundle);
@@ -697,9 +697,9 @@ function Notificaciones() {
       <main className="notifications-content">
         <header className="notifications-header">
           <div>
-            <span className="notifications-eyebrow">Agenda personal</span>
+            <span className="notifications-eyebrow">Centro de avisos</span>
             <h1>Notificaciones</h1>
-            <p>{profile ? `Avisos para ${profile.full_name}.` : "Los avisos disponibles aparecerán aquí."}</p>
+            <p>Mantente al día con tus actividades y novedades.</p>
           </div>
           <div className="notifications-header-actions">
             {unreadCount > 0 && <button type="button" className="notifications-read-all" onClick={() => { void handleMarkAllRead(); }}>Marcar todas como leídas</button>}
@@ -720,7 +720,7 @@ function Notificaciones() {
 
         <section className="notifications-panel" aria-labelledby="notifications-list-title">
           <div className="notifications-panel-heading">
-            <div><h2 id="notifications-list-title">Actividad reciente</h2><p>Asignaciones, cambios y avisos importantes de la biblioteca.</p></div>
+            <div><h2 id="notifications-list-title">Actividad reciente</h2><p>Consulta tus asignaciones, recordatorios y avisos importantes.</p></div>
             <div className="notifications-list-tools">
               <span className="notifications-count">
                 {notifications.length} {notifications.length === 1 ? "aviso" : "avisos"}
@@ -788,7 +788,10 @@ function Notificaciones() {
                     {selectionMode && <input className="notification-select" type="checkbox" checked={visibleSelectedIds.includes(notification.id)} onChange={() => setSelectedIds((ids) => visibleSelectedIds.includes(notification.id) ? ids.filter((id) => id !== notification.id) : [...visibleSelectedIds, notification.id])} aria-label={`Seleccionar ${notification.title}`} />}
                     <span className={`notification-marker marker-${meta.tone}`} aria-hidden="true">{getNotificationIcon(notification.kind)}</span>
                     <div className="notification-main">
-                      <div className="notification-topline"><span className={`notification-type type-${meta.tone}`}>{meta.label}</span><time>{new Date(notification.createdAt).toLocaleString("es-MX")}</time></div>
+                      <div className="notification-card-heading">
+                        <div className="notification-topline"><span className={`notification-type type-${meta.tone}`}>{meta.label}</span><time>{new Date(notification.createdAt).toLocaleString("es-MX")}</time></div>
+                        <span className={`notification-status ${notification.readAt ? "status-read" : "status-unread"}`}>{notification.readAt ? "Leída" : "Sin leer"}</span>
+                      </div>
                       <h3>{getNotificationTitle(notification)}</h3>
                       <p>{notification.message}</p>
                       {notification.event && (
@@ -797,33 +800,32 @@ function Notificaciones() {
                           <span>{notification.event.startTime} – {notification.event.endTime}</span>
                         </div>
                       )}
-                    </div>
-                    <div className="notification-actions">
-                      {(details || notification.kind.startsWith("event_")) && <button type="button" className="notification-summary-button" onClick={() => {
-                        if (notification.kind.startsWith("event_")) void handleViewEvent(notification);
-                        else if (details && !("startTime" in details)) {
-                          detailsModalOpenRef.current = true;
-                          setDetailsToView(details);
-                          setDetailsOfflineSnapshot(isUsingCachedDataOffline);
-                        }
-                      }} disabled={notification.kind.startsWith("event_") && openingEventId === notification.id}>
-                        <Eye size={15} aria-hidden="true" />
-                        <span>{openingEventId === notification.id ? "Consultando..." : "Ver información"}</span>
-                      </button>}
-                      <span className={`notification-status status-${notification.readAt ? "read" : meta.tone}`}>{notification.readAt ? "Leída" : "Nueva"}</span>
-                      {!notification.readAt && <button type="button" className="notification-mark-read" onClick={() => { void handleMarkRead(notification.id); }}>Marcar leída</button>}
-                      <button
-                        type="button"
-                        className="notification-delete-one"
-                        disabled={isDeleting}
-                        onClick={() => {
-                          setDeleteDialogError("");
-                          setDeleteDialog({ ids: [notification.id], mode: "single", notificationTitle: notification.title });
-                        }}
-                        aria-label={`Eliminar ${notification.title}`}
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                      </button>
+                      <div className="notification-actions">
+                        {(details || notification.kind.startsWith("event_")) && <button type="button" className="notification-summary-button" onClick={() => {
+                          if (notification.kind.startsWith("event_")) void handleViewEvent(notification);
+                          else if (details && !("startTime" in details)) {
+                            detailsModalOpenRef.current = true;
+                            setDetailsToView(details);
+                            setDetailsOfflineSnapshot(isUsingCachedDataOffline);
+                          }
+                        }} disabled={notification.kind.startsWith("event_") && openingEventId === notification.id}>
+                          <Eye size={15} aria-hidden="true" />
+                          <span>{openingEventId === notification.id ? "Consultando..." : "Ver información"}</span>
+                        </button>}
+                        {!notification.readAt && <button type="button" className="notification-mark-read" onClick={() => { void handleMarkRead(notification.id); }}>Marcar leída</button>}
+                        <button
+                          type="button"
+                          className="notification-delete-one"
+                          disabled={isDeleting}
+                          onClick={() => {
+                            setDeleteDialogError("");
+                            setDeleteDialog({ ids: [notification.id], mode: "single", notificationTitle: notification.title });
+                          }}
+                          aria-label={`Eliminar ${notification.title}`}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
                   </article>
                 );

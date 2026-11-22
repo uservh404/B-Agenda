@@ -405,7 +405,7 @@
 .users-controls input, .users-controls select { padding: 0 12px; }
 .users-controls input::placeholder { color: rgba(248,250,252,.58); }
 .users-controls select option { background: #1e293b; color: #fff; }
-.sort-users-button { min-width: 68px; padding: 0 14px; background: rgba(59,130,246,.7); cursor: pointer; font-weight: 700; }
+.sort-users-button { min-width: 68px; padding: 0 14px; background: #2563eb; cursor: pointer; font-weight: 700; }
 .users-controls input:focus, .users-controls select:focus, .sort-users-button:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(96,165,250,.18); }
 .users-state { display: flex; min-height: 150px; align-items: center; justify-content: center; gap: 10px; border: 1px dashed rgba(255,255,255,.25); border-radius: 14px; color: rgba(248,250,252,.75); font-size: 14px; }
 .loading-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25); border-top-color: #93c5fd; border-radius: 50%; animation: users-spin .8s linear infinite; }

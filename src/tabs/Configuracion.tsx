@@ -835,7 +835,7 @@ function Configuracion() {
         <header className="content-header settings-header">
           <span className="settings-eyebrow">Preferencias de cuenta</span>
           <h1>Configuración</h1>
-          <p>Administra tus datos personales y mantén actualizada tu información.</p>
+          <p>Consulta y actualiza la información de tu cuenta.</p>
         </header>
 
         <section className="settings-panel">
@@ -1010,8 +1010,8 @@ function Configuracion() {
               {formError && <p className="settings-error" role="alert">{formError}</p>}
 
               <div className="settings-form-actions">
-                <button type="button" className="cancel-settings-button" onClick={() => setEditing(false)} disabled={isSaving}>Cancelar</button>
-                <button type="submit" disabled={isSaving || requestRetryRemainingSeconds > 0}>
+                <button type="button" className="cancel-settings-button form-visual-cancel" onClick={() => setEditing(false)} disabled={isSaving}>Cancelar</button>
+                <button type="submit" className="form-visual-save" disabled={isSaving || requestRetryRemainingSeconds > 0}>
                   {isSaving ? "Enviando código..." : "Guardar cambios"}
                 </button>
               </div>

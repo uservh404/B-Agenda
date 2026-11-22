@@ -120,7 +120,7 @@ function Sidebar() {
 
       {sidebarOpen && (
         <>
-          <h2>Biblioteca</h2>
+          <h2>Menú</h2>
           <ul className="sidebar-menu-list">
             <li className="sidebar-menu-item" onClick={() => navigate("/principal")}><BookOpen aria-hidden="true" /><span>Inicio</span></li>
             {administrator && <li className="sidebar-menu-item" onClick={() => navigate("/usuarios")}><UsersRound aria-hidden="true" /><span>Usuarios</span></li>}

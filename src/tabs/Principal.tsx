@@ -154,6 +154,10 @@ function Principal() {
   const [eventToDelete, setEventToDelete] = useState<string | null>(null);
   const eventLoadGeneration = useRef(0);
   const syncPanelRef = useRef<HTMLDivElement>(null);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
+  const yearPickerRef = useRef<HTMLDivElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const yearTriggerRef = useRef<HTMLButtonElement>(null);
   const loadedCalendarUserId = useRef("");
   const syncingUserIds = useRef(new Set<string>());
   const activeAuthenticatedUserId = useRef("");
@@ -261,6 +265,35 @@ function Principal() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [syncPanelOpen]);
+
+  useEffect(() => {
+    if (!filterMenuOpen && !yearDropdownOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (filterMenuOpen && !filterMenuRef.current?.contains(event.target)) {
+        setFilterMenuOpen(false);
+      }
+      if (yearDropdownOpen && !yearPickerRef.current?.contains(event.target)) {
+        setYearDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFilterMenuOpen(false);
+        setYearDropdownOpen(false);
+        if (yearDropdownOpen) yearTriggerRef.current?.focus();
+        else filterTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [filterMenuOpen, yearDropdownOpen]);
 
   const reloadEvents = useCallback(async (showLoading = true) => {
     const requestGeneration = ++eventLoadGeneration.current;
@@ -1608,26 +1641,30 @@ function Principal() {
 
       <main className="content">
         <div className="content-header">
+          <span className="dashboard-eyebrow">Panel principal</span>
           <h1>Zona joven</h1>
-          <p>Gestiona tu biblioteca, eventos, anuncios y recursos de manera eficiente.</p>
+          <p>Organiza tus eventos, recursos y anuncios desde un solo lugar.</p>
         </div>
 
         <div className="cards-grid">
           <div className="welcome-card">
             <div className="welcome-card-header">
               <h3>Bienvenido</h3>
-              <div className="event-filter-wrapper">
+              <div className="event-filter-wrapper" ref={filterMenuRef}>
                 <button
                   type="button"
                   className="filter-trigger"
+                  ref={filterTriggerRef}
                   onClick={() => setFilterMenuOpen((prev) => !prev)}
                   aria-label="Abrir filtros de eventos"
+                  aria-expanded={filterMenuOpen}
+                  aria-controls="event-audience-filter-menu"
                 >
                   ☰
                 </button>
 
                 {filterMenuOpen && (
-                  <div className="filter-menu">
+                  <div className="filter-menu" id="event-audience-filter-menu" role="group" aria-label="Filtrar eventos">
                     {[
                       { value: "all", label: "Toda la agenda" },
                       { value: "collaborative", label: "Agenda colaborativa" },
@@ -1880,18 +1917,21 @@ function Principal() {
                     </option>
                   ))}
                 </select>
-                <div className="year-picker">
+                <div className="year-picker" ref={yearPickerRef}>
                   <button
                     type="button"
                     className="calendar-select year-trigger"
-                    onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
+                    ref={yearTriggerRef}
+                    onClick={() => setYearDropdownOpen((open) => !open)}
+                    aria-expanded={yearDropdownOpen}
+                    aria-controls="calendar-year-options"
                   >
                     {year}
                   </button>
 
                   {yearDropdownOpen && (
-                    <div className="year-dropdown">
-                      <div className="year-dropdown-list">
+                    <div className="year-dropdown" id="calendar-year-options">
+                      <div className="year-dropdown-list" role="group" aria-label="Seleccionar año">
                         {yearOptions.map((yearOption) => (
                           <button
                             key={yearOption}
@@ -2216,11 +2256,11 @@ function Principal() {
                 />
               </div>
               <div className="modal-footer">
-                <button className="btn-cancel" type="button" onClick={closeModal}>
+                <button className="btn-cancel form-visual-cancel" type="button" onClick={closeModal}>
                   Cancelar
                 </button>
                 <button
-                  className="btn-save"
+                  className="btn-save form-visual-save"
                   type="submit"
                   disabled={
                     isSaving

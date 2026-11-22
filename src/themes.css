@@ -764,6 +764,11 @@ html[data-theme="claro"] .notification-item.is-unread {
   background: #eff6ff;
 }
 
+html[data-theme="claro"] .notification-item.is-read {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
 html[data-theme="claro"] .resource-notes-box {
   background: #f1f5f9;
 }
@@ -1196,4 +1201,170 @@ html[data-theme="claro"] .edit-profile-button {
 html[data-theme="claro"] .loading-spinner {
   border-color: #cbd5e1;
   border-top-color: #2563eb;
+}
+
+html[data-theme="claro"] .dashboard-eyebrow,
+html[data-theme="claro"] .resources-eyebrow {
+  color: #1d4ed8;
+}
+
+html[data-theme="claro"] .recursos-header p {
+  color: #475569;
+}
+
+html[data-theme] .filter-trigger,
+html[data-theme] .add-event-button,
+html[data-theme] .add-resource-btn,
+html[data-theme] .sort-users-button,
+html[data-theme] .new-announcement-button {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+html[data-theme] .filter-trigger:hover,
+html[data-theme] .add-event-button:hover,
+html[data-theme] .new-announcement-button:hover {
+  background: #3b82f6;
+}
+
+html[data-theme] .form-visual-save {
+  border: 1px solid #49c994;
+  background: rgba(32, 109, 84, 0.96);
+  color: #e0fff1;
+  box-shadow: 0 0 12px rgba(73, 201, 148, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme] .form-visual-cancel {
+  border: 1px solid #b86576;
+  background: rgba(104, 54, 66, 0.96);
+  color: #ffe0e5;
+  box-shadow: 0 0 12px rgba(184, 101, 118, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme] .form-visual-save:hover:not(:disabled),
+html[data-theme] .form-visual-cancel:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+html[data-theme] .notifications-page .notifications-read-all,
+html[data-theme] .notifications-page .announcement-selection-toggle-button,
+html[data-theme] .anuncios-page .announcement-selection-toggle-button,
+html[data-theme] .notifications-page .notification-status.status-unread {
+  border-color: #5ca9ff;
+  background: rgba(37, 77, 122, 0.92);
+  color: #f0f8ff;
+  box-shadow: 0 0 12px rgba(92, 169, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme] .notifications-page .notification-status.status-read {
+  border-color: #667487;
+  background: rgba(48, 56, 70, 0.96);
+  color: #d6dee8;
+  box-shadow: none;
+}
+
+html[data-theme] .notifications-page .notifications-read-all:hover:not(:disabled),
+html[data-theme] .notifications-page .announcement-selection-toggle-button:hover:not(:disabled),
+html[data-theme] .anuncios-page .announcement-selection-toggle-button:hover:not(:disabled) {
+  border-color: #5ca9ff;
+  background: #254d7a;
+}
+
+html[data-theme] .recursos-page .resource-summary-btn,
+html[data-theme] .anuncios-page .announcement-summary-button,
+html[data-theme] .notifications-page .notification-summary-button {
+  border: 1px solid rgba(73, 185, 147, 0.9);
+  background: rgba(40, 118, 95, 0.96);
+  color: #c8ffea;
+  box-shadow: 0 0 12px rgba(73, 185, 147, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+html[data-theme] .recursos-page .edit-resource-btn,
+html[data-theme] .anuncios-page .announcement-edit-button {
+  border: 1px solid rgba(103, 158, 255, 0.9);
+  background: rgba(54, 94, 155, 0.92);
+  color: #e0ecff;
+  box-shadow: 0 0 12px rgba(103, 158, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+html[data-theme] .recursos-page .delete-resource-btn,
+html[data-theme] .anuncios-page .announcement-card-delete-button {
+  border: 1px solid rgba(223, 120, 138, 0.9);
+  background: rgba(138, 64, 80, 0.92);
+  color: #ffe0e6;
+  box-shadow: 0 0 12px rgba(223, 120, 138, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+html[data-theme] .recursos-page .edit-resource-btn,
+html[data-theme] .recursos-page .delete-resource-btn {
+  padding: 8px 9px;
+}
+
+html[data-theme] .recursos-page .resource-summary-btn:hover:not(:disabled),
+html[data-theme] .anuncios-page .announcement-summary-button:hover:not(:disabled),
+html[data-theme] .notifications-page .notification-summary-button:hover:not(:disabled),
+html[data-theme] .recursos-page .edit-resource-btn:hover:not(:disabled),
+html[data-theme] .anuncios-page .announcement-edit-button:hover:not(:disabled),
+html[data-theme] .recursos-page .delete-resource-btn:hover:not(:disabled),
+html[data-theme] .notifications-page .notification-delete-one:hover:not(:disabled),
+html[data-theme] .anuncios-page .announcement-card-delete-button:hover:not(:disabled) {
+  filter: brightness(1.09);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme] .notifications-page .notification-delete-one {
+  border-color: rgba(223, 120, 138, 0.9);
+  background: rgba(138, 64, 80, 0.92);
+  color: #ffe0e6;
+  box-shadow: 0 0 12px rgba(223, 120, 138, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+html[data-theme] .notifications-page .notification-delete-one:disabled {
+  cursor: wait;
+  opacity: 0.58;
+  box-shadow: none;
+}
+
+html[data-theme] .resource-summary-footer button,
+html[data-theme] .announcement-summary-footer button,
+html[data-theme] .notifications-page .notification-info-footer button {
+  border: 1px solid #b86576;
+  padding: 7px 14px;
+  background: rgba(104, 54, 66, 0.96);
+  color: #ffe0e5;
+  box-shadow: 0 0 12px rgba(184, 101, 118, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: filter 0.18s ease, box-shadow 0.18s ease;
+}
+
+html[data-theme] .resource-summary-footer button:hover:not(:disabled),
+html[data-theme] .announcement-summary-footer button:hover:not(:disabled),
+html[data-theme] .notifications-page .notification-info-footer button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+html[data-theme] .users-page .user-save-button {
+  border: 1px solid #49c994;
+  padding: 9px 11px;
+  background: rgba(32, 109, 84, 0.96);
+  color: #e0fff1;
+  box-shadow: 0 0 12px rgba(73, 201, 148, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: filter 0.18s ease, box-shadow 0.18s ease;
+}
+
+html[data-theme] .users-page .user-actions .user-view-button {
+  background: #2563eb;
+}
+
+html[data-theme] .users-page .user-save-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+html[data-theme] .users-page .user-save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
 }

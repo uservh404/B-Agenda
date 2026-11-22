@@ -461,9 +461,9 @@ function Anuncios() {
       <main className="announcements-content">
         <header className="announcements-header">
           <div>
-            <span className="announcements-eyebrow">Comunicación de la biblioteca</span>
+            <span className="announcements-eyebrow">Comunicación interna</span>
             <h1>Anuncios</h1>
-            <p>Información importante y novedades para toda la comunidad.</p>
+            <p>Consulta y comparte avisos importantes con el equipo.</p>
           </div>
           <div className="announcement-header-actions">
             <SyncStatusPanel
@@ -499,8 +499,8 @@ function Anuncios() {
             <label htmlFor="announcement-content">Mensaje</label>
             <textarea id="announcement-content" rows={4} value={formData.content} onChange={(event) => setFormData({ ...formData, content: event.target.value })} placeholder="Escribe la información que deseas compartir" required />
             <div className="announcement-form-actions">
-              <button type="button" className="secondary-btn" disabled={isSaving} onClick={() => { resetForm(); setFormOpen(false); }}>Cancelar</button>
-              <button type="submit" className="primary-btn" disabled={isSaving}>{isSaving ? "Guardando..." : editingAnnouncement ? "Guardar cambios" : "Publicar anuncio"}</button>
+              <button type="button" className="secondary-btn form-visual-cancel" disabled={isSaving} onClick={() => { resetForm(); setFormOpen(false); }}>Cancelar</button>
+              <button type="submit" className="primary-btn form-visual-save" disabled={isSaving}>{isSaving ? "Guardando..." : editingAnnouncement ? "Guardar cambios" : "Publicar anuncio"}</button>
             </div>
           </form>
         )}
