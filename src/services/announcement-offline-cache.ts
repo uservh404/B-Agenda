@@ -31,6 +31,7 @@ export interface AnnouncementOperation {
   attempts: number;
   code?: string;
   lastError?: string;
+  authorizationRejected?: boolean;
 }
 
 interface AnnouncementSnapshot {
@@ -154,6 +155,8 @@ function isOperation(value: unknown, identity: AnnouncementCacheIdentity): value
     && typeof operation.createdAt === "string"
     && typeof operation.attempts === "number"
     && Number.isSafeInteger(operation.attempts)
+    && (operation.authorizationRejected === undefined
+      || typeof operation.authorizationRejected === "boolean")
     && (operation.kind === "delete"
       ? operation.input === undefined && isAnnouncement(operation.previousAnnouncement)
       : !!operation.input
@@ -403,7 +406,8 @@ export async function completeAnnouncementOperation(
 export async function updateAnnouncementOperation(
   identity: AnnouncementCacheIdentity,
   operationId: string,
-  update: Pick<AnnouncementOperation, "status" | "code" | "lastError">,
+  update: Pick<AnnouncementOperation, "status" | "code" | "lastError">
+    & Partial<Pick<AnnouncementOperation, "authorizationRejected">>,
 ) {
   const database = await openDatabase();
   try {
@@ -419,6 +423,117 @@ export async function updateAnnouncementOperation(
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("No se pudo actualizar el estado de la operación."));
       transaction.onabort = () => reject(transaction.error ?? new Error("La actualización de la operación fue cancelada."));
+    });
+  } finally {
+    database.close();
+  }
+}
+
+export async function resetRejectedAnnouncementOperationForRetry(
+  identity: AnnouncementCacheIdentity,
+  operationId: string,
+): Promise<void> {
+  const database = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const request = store.get([identity.scope, operationId]);
+      let updateError: Error | null = null;
+      request.onsuccess = () => {
+        const operation = request.result as unknown;
+        if (
+          !isOperation(operation, identity)
+          || operation.status !== "rejected"
+          || operation.code !== "not_authorized"
+          || operation.authorizationRejected === true
+        ) {
+          updateError = new Error("La operación no está lista para reanudarse con el mismo identificador.");
+          transaction.abort();
+          return;
+        }
+        store.put({
+          ...operation,
+          status: "pending",
+          code: undefined,
+          lastError: undefined,
+        });
+      };
+      request.onerror = () => {
+        updateError = request.error ?? new Error("No se pudo leer la operación rechazada.");
+        transaction.abort();
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(
+        updateError ?? transaction.error ?? new Error("No se pudo reanudar la operación de Anuncios."),
+      );
+      transaction.onabort = () => reject(
+        updateError ?? transaction.error ?? new Error("La reanudación de la operación fue cancelada."),
+      );
+    });
+  } finally {
+    database.close();
+  }
+}
+
+export async function requeueRejectedAnnouncementOperation(
+  identity: AnnouncementCacheIdentity,
+  operationId: string,
+): Promise<AnnouncementOperation> {
+  const database = await openDatabase();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction(OPERATIONS_STORE, "readwrite");
+      const store = transaction.objectStore(OPERATIONS_STORE);
+      const request = store.get([identity.scope, operationId]);
+      let replacement: AnnouncementOperation | null = null;
+      let updateError: Error | null = null;
+
+      request.onsuccess = () => {
+        const operation = request.result as unknown;
+        if (
+          !isOperation(operation, identity)
+          || operation.status !== "rejected"
+          || operation.code !== "not_authorized"
+          || operation.authorizationRejected !== true
+        ) {
+          updateError = new Error("Solo se pueden reanudar operaciones rechazadas por permisos.");
+          transaction.abort();
+          return;
+        }
+
+        try {
+          replacement = {
+            ...operation,
+            operationId: crypto.randomUUID(),
+            status: "pending",
+            attempts: 0,
+            code: undefined,
+            lastError: undefined,
+          };
+          store.delete([identity.scope, operationId]);
+          store.add(replacement);
+        } catch (error) {
+          updateError = error instanceof Error
+            ? error
+            : new Error("No se pudo preparar nuevamente la operación de Anuncios.");
+          transaction.abort();
+        }
+      };
+      request.onerror = () => {
+        updateError = request.error ?? new Error("No se pudo leer la operación rechazada.");
+        transaction.abort();
+      };
+      transaction.oncomplete = () => {
+        if (replacement) resolve(replacement);
+        else reject(new Error("La operación rechazada ya no está disponible."));
+      };
+      transaction.onerror = () => reject(
+        updateError ?? transaction.error ?? new Error("No se pudo reanudar la operación de Anuncios."),
+      );
+      transaction.onabort = () => reject(
+        updateError ?? transaction.error ?? new Error("La operación de Anuncios fue cancelada."),
+      );
     });
   } finally {
     database.close();

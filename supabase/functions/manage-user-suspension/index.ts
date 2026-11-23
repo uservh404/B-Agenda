@@ -58,6 +58,30 @@ function isSuspended(user: User) {
   return bannedUntil > Date.now();
 }
 
+async function assertActorIsActive(admin: SupabaseClient, actorId: string) {
+  let actor: User;
+  try {
+    const { data, error } = await admin.auth.admin.getUserById(actorId);
+    if (error || !data.user) {
+      console.error("Could not verify the administrator's Auth status.", {
+        code: error?.code ?? "user_not_found",
+      });
+      throw new RequestError("service_unavailable", 503);
+    }
+    actor = data.user;
+  } catch (error) {
+    if (error instanceof RequestError) throw error;
+    console.error("Could not verify the administrator's Auth status.", {
+      code: error instanceof Error ? error.name : "auth_lookup_failed",
+    });
+    throw new RequestError("service_unavailable", 503);
+  }
+
+  if (isSuspended(actor)) {
+    throw new RequestError("account_suspended", 403);
+  }
+}
+
 async function mapWithConcurrency<T, R>(
   values: T[],
   concurrency: number,
@@ -177,6 +201,7 @@ Deno.serve(async (request) => {
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    await assertActorIsActive(admin, authData.user.id);
     const actorRole = await getProfileRole(admin, authData.user.id);
     if (actorRole !== "administrador") throw new RequestError("not_authorized", 403);
 

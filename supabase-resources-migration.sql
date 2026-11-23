@@ -230,14 +230,16 @@ $profile_trigger$;
 
 DO $policies$
 BEGIN
+  EXECUTE 'DROP POLICY IF EXISTS resources_read_managers ON public.resources';
+
   IF NOT EXISTS (
     SELECT 1 FROM pg_catalog.pg_policies
     WHERE schemaname = 'public'
       AND tablename = 'resources'
-      AND policyname = 'resources_read_managers'
+      AND policyname = 'resources_read_authenticated'
   ) THEN
-    EXECUTE 'CREATE POLICY resources_read_managers ON public.resources
-      FOR SELECT TO authenticated USING (public.can_manage_resources())';
+    EXECUTE 'CREATE POLICY resources_read_authenticated ON public.resources
+      FOR SELECT TO authenticated USING (true)';
   END IF;
 
   IF NOT EXISTS (

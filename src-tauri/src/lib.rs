@@ -122,6 +122,8 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       offline_identity::save_offline_identity,
       offline_identity::load_offline_identity,
+      offline_identity::is_offline_account_suspended,
+      offline_identity::set_offline_account_suspension,
       offline_identity::clear_offline_identity,
       event_reminders::replace_event_reminders,
     ])

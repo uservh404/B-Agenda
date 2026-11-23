@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { isAccountSuspensionConfirmedInSession } from "../auth/account-suspension-response";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface Announcement {
@@ -74,6 +75,9 @@ function parseAnnouncement(value: unknown): Announcement {
 
 async function ensureAuthenticatedUser(expectedUserId: string) {
   const { data, error } = await supabase.auth.getSession();
+  if (isAccountSuspensionConfirmedInSession(expectedUserId)) {
+    throw new Error("account_suspended");
+  }
   if (error || data.session?.user.id !== expectedUserId) {
     throw new Error("La sesión actual no corresponde a la cuenta activa de Anuncios.");
   }

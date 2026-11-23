@@ -51,6 +51,11 @@ import type {
 } from "../types/calendar";
 
 type EventAudienceFilter = "all" | "collaborative" | "personal";
+interface EventReloadState {
+  requested: boolean;
+  showLoading: boolean;
+  promise: Promise<boolean>;
+}
 
 const CALENDAR_LOAD_TIMEOUT_MS = 20000;
 const OFFLINE_SYNC_NOTICE = "La conexión se perdió antes de iniciar la sincronización. Los cambios se reintentarán sincronizar al reconectarse.";
@@ -153,6 +158,7 @@ function Principal() {
   });
   const [eventToDelete, setEventToDelete] = useState<string | null>(null);
   const eventLoadGeneration = useRef(0);
+  const eventReloads = useRef(new Map<string, EventReloadState>());
   const syncPanelRef = useRef<HTMLDivElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const yearPickerRef = useRef<HTMLDivElement>(null);
@@ -295,7 +301,7 @@ function Principal() {
     };
   }, [filterMenuOpen, yearDropdownOpen]);
 
-  const reloadEvents = useCallback(async (showLoading = true) => {
+  const reloadEventsOnce = useCallback(async (showLoading = true) => {
     const requestGeneration = ++eventLoadGeneration.current;
     if (!currentUserId) {
       setEvents([]);
@@ -420,6 +426,43 @@ function Principal() {
     }
   }, [authStatus, currentUserId]);
 
+  const reloadEvents = useCallback((showLoading = true): Promise<boolean> => {
+    if (!currentUserId) return reloadEventsOnce(showLoading);
+
+    const reloadKey = `${currentUserId}:${authStatus}`;
+    const active = eventReloads.current.get(reloadKey);
+    if (active) {
+      active.requested = true;
+      active.showLoading ||= showLoading;
+      return active.promise;
+    }
+
+    const state: EventReloadState = {
+      requested: false,
+      showLoading,
+      promise: Promise.resolve(false),
+    };
+    eventReloads.current.set(reloadKey, state);
+    state.promise = (async () => {
+      let loaded: boolean;
+      do {
+        state.requested = false;
+        const shouldShowLoading = state.showLoading;
+        state.showLoading = false;
+        loaded = await reloadEventsOnce(shouldShowLoading);
+      } while (
+        state.requested
+        && eventReloads.current.get(reloadKey) === state
+      );
+      return loaded;
+    })().finally(() => {
+      if (eventReloads.current.get(reloadKey) === state) {
+        eventReloads.current.delete(reloadKey);
+      }
+    });
+    return state.promise;
+  }, [authStatus, currentUserId, reloadEventsOnce]);
+
   useEffect(() => {
     const handleOffline = () => {
       setIsOnline(false);
@@ -504,6 +547,14 @@ function Principal() {
     };
   }, [authStatus, profile?.id, user?.id, reloadEvents]);
 
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !currentUserId || !isOnline) return;
+    const intervalId = window.setInterval(() => {
+      if (window.navigator.onLine) void reloadEvents(false);
+    }, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [authStatus, currentUserId, isOnline, reloadEvents]);
+
   const syncProfileId = profile?.id;
   useEffect(() => {
     if (!canSyncCalendar || !syncProfileId) return;
@@ -515,6 +566,7 @@ function Principal() {
       syncingUserIds.current.add(userId);
       setIsSyncing(true);
       const blockedEventIds = new Set<string>();
+      let shouldRefreshEvents = false;
       try {
         const operations = await readCalendarOutbox(userId);
         if (!active) return;
@@ -571,6 +623,7 @@ function Principal() {
                 operation.expectedVersion,
                 operation.resolvesOperationId,
               );
+            shouldRefreshEvents = true;
           } catch {
             if (!active) return;
             await markCalendarOperationError(userId, operation.operationId, "No se pudo contactar con el servidor.");
@@ -628,7 +681,7 @@ function Principal() {
             : hasNetworkErrors
               ? "Hay cambios pendientes. Se volverán a intentar cuando la conexión esté disponible."
               : "");
-        await reloadEvents(false);
+        if (shouldRefreshEvents) await reloadEvents(false);
       } catch {
         if (active) {
           setSyncError("No se pudo completar la sincronización. Los cambios se conservaron en este equipo.");

@@ -121,6 +121,18 @@ function EventReminderManager() {
         });
     };
 
+    if (status === "suspended") {
+        if (activeNativeUserId.current !== null) {
+          activeNativeUserId.current = null;
+          void invoke("replace_event_reminders", { userId: null, reminders: [] }).catch((error: unknown) => {
+            console.error("No se pudieron pausar los recordatorios de una cuenta suspendida.", error);
+          });
+        }
+        return () => {
+          active = false;
+        };
+    }
+
     if (activeNativeUserId.current !== userId) {
       activeNativeUserId.current = userId;
       void invoke("replace_event_reminders", { userId, reminders: [] }).catch((error: unknown) => {

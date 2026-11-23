@@ -35,6 +35,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
+function isConfirmedSuspensionRpcError(error: unknown): boolean {
+  return isRecord(error) && error.code === "account_suspended";
+}
+
 function getServiceKey() {
   const legacyKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (legacyKey) return legacyKey;
@@ -110,6 +114,36 @@ async function getAuthorizedUser(request: Request, supabaseUrl: string) {
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) return null;
   return data.user;
+}
+
+type AccountSuspensionStatus = "active" | "suspended" | "unavailable";
+
+async function getAccountSuspensionStatus(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<AccountSuspensionStatus> {
+  try {
+    const { data, error } = await admin.auth.admin.getUserById(userId);
+    if (error || !data.user) {
+      console.error("Could not verify the authenticated user's Auth status.", {
+        code: error?.code ?? "user_not_found",
+      });
+      return "unavailable";
+    }
+
+    if (!data.user.banned_until) return "active";
+    const bannedUntil = Date.parse(data.user.banned_until);
+    if (!Number.isFinite(bannedUntil)) {
+      console.error("Supabase Auth returned an invalid account suspension timestamp.");
+      return "unavailable";
+    }
+    return bannedUntil > Date.now() ? "suspended" : "active";
+  } catch (error) {
+    console.error("Could not verify the authenticated user's Auth status.", {
+      code: error instanceof Error ? error.name : "auth_lookup_failed",
+    });
+    return "unavailable";
+  }
 }
 
 async function getCurrentProfile(admin: SupabaseClient, userId: string): Promise<ProfileRow> {
@@ -196,6 +230,7 @@ function errorCode(error: unknown) {
     case "email_change_pending":
     case "email_delivery_failed":
     case "no_changes":
+    case "account_suspended":
       return error.message;
     default:
       return "service_unavailable";
@@ -271,6 +306,9 @@ async function issueChallenge(
   });
 
   if (error) {
+    if (isConfirmedSuspensionRpcError(error)) {
+      throw new Error("account_suspended");
+    }
     console.error("Could not reserve an identity-verification challenge.", { code: error.code });
     throw new Error("service_unavailable");
   }
@@ -300,6 +338,9 @@ async function issueChallenge(
       p_challenge_id: challengeId,
       p_user_id: user.id,
     });
+    if (isConfirmedSuspensionRpcError(cancelError)) {
+      throw new Error("account_suspended");
+    }
     if (cancelError || cancelled !== true) {
       console.error("Could not invalidate a challenge after email delivery failed.", {
         code: cancelError?.code ?? "challenge_not_cancelled",
@@ -322,6 +363,9 @@ async function issueChallenge(
         ? activationData[0]
         : null;
       break;
+    }
+    if (isConfirmedSuspensionRpcError(activationError)) {
+      throw new Error("account_suspended");
     }
     console.error("Could not activate a delivered identity-verification challenge.", {
       code: activationError.code,
@@ -408,6 +452,13 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const suspensionStatus = await getAccountSuspensionStatus(admin, user.id);
+  if (suspensionStatus === "suspended") {
+    return jsonResponse({ ok: false, code: "account_suspended" }, 403);
+  }
+  if (suspensionStatus === "unavailable") {
+    return jsonResponse({ ok: false, code: "service_unavailable" }, 503);
+  }
 
   try {
     if (body.action === "cancel") {
@@ -417,6 +468,9 @@ Deno.serve(async (request) => {
         p_user_id: user.id,
       });
       if (error) {
+        if (isConfirmedSuspensionRpcError(error)) {
+          return jsonResponse({ ok: false, code: "account_suspended" }, 403);
+        }
         console.error("Could not cancel an identity-verification challenge.", { code: error.code });
         return jsonResponse({ ok: false, code: "service_unavailable" });
       }
@@ -469,6 +523,9 @@ Deno.serve(async (request) => {
       p_update_profile: operation.updateProfile,
     });
     if (error) {
+      if (isConfirmedSuspensionRpcError(error)) {
+        return jsonResponse({ ok: false, code: "account_suspended" }, 403);
+      }
       console.error("Could not verify and apply the requested profile change.", { code: error.code });
       return jsonResponse({ ok: false, code: "service_unavailable" });
     }
@@ -494,6 +551,9 @@ Deno.serve(async (request) => {
     if (code === "service_unavailable") {
       console.error("Profile identity verification failed.", error);
     }
-    return jsonResponse({ ok: false, code });
+    return jsonResponse(
+      { ok: false, code },
+      code === "account_suspended" ? 403 : 200,
+    );
   }
 });

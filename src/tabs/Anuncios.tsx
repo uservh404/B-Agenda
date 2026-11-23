@@ -103,15 +103,18 @@ function Anuncios() {
   const isConnectionAvailable = isOnline && window.navigator.onLine;
   const isAdministrator = profile?.role === "administrador";
   const canPublish = isAdministrator
-    || (status === "offline"
-      ? activeCache.canPublishAnnouncements === true
-      : hasAdministrativePermission(profile, "can_publish_announcements"));
+    || (activeCache.canPublishAnnouncements !== null
+      ? activeCache.canPublishAnnouncements
+      : status !== "offline"
+        && hasAdministrativePermission(profile, "can_publish_announcements"));
   const selectionMatchesIdentity = !!identity && selection.scope === identity.scope;
   const selectedIds = canPublish && selectionMatchesIdentity ? selection.ids : [];
   const selectionMode = canPublish && selectionMatchesIdentity && selection.active;
   const selectedAnnouncements = announcements.filter((announcement) => selectedIds.includes(announcement.id));
   const pendingCount = operations.filter((operation) => operation.status === "pending").length;
-  const pendingDeletionCount = operations.filter((operation) => operation.kind === "delete").length;
+  const pendingDeletionCount = operations.filter(
+    (operation) => operation.kind === "delete" && operation.status === "pending",
+  ).length;
   const hasIssues = operations.some((operation) => operation.status !== "pending");
   const statusLabel = !isConnectionAvailable
     ? "Sin conexión"

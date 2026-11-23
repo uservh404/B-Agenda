@@ -359,6 +359,27 @@ export async function saveResourcePermission(
   }
 }
 
+export async function clearResourceSnapshot(
+  identity: ResourceCacheIdentity,
+): Promise<void> {
+  const database = await openResourceCache();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(SNAPSHOTS_STORE, "readwrite");
+      transaction.objectStore(SNAPSHOTS_STORE).delete(identity.scope);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(
+        transaction.error ?? new Error("No se pudo retirar la copia local de Recursos."),
+      );
+      transaction.onabort = () => reject(
+        transaction.error ?? new Error("No se pudo retirar la copia local de Recursos."),
+      );
+    });
+  } finally {
+    database.close();
+  }
+}
+
 export async function saveResourceSnapshot(
   identity: ResourceCacheIdentity,
   resources: ResourceItem[],

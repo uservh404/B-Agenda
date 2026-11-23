@@ -15,6 +15,7 @@ export interface AuthProfile {
   role: UserRole;
   can_assign_events: boolean;
   can_publish_announcements: boolean;
+  can_manage_resources?: boolean | null;
 }
 
 export type AdministrativePermission = "can_assign_events" | "can_publish_announcements";
@@ -36,7 +37,7 @@ export function getEffectiveProfile(profile: AuthProfile): AuthProfile {
 }
 
 export interface AuthState {
-  status: "loading" | "unauthenticated" | "authenticated" | "offline" | "recovery" | "error";
+  status: "loading" | "unauthenticated" | "authenticated" | "offline" | "recovery" | "suspended" | "error";
   session: Session | null;
   user: User | OfflineUserIdentity | null;
   profile: AuthProfile | null;

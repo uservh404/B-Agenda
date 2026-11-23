@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -240,7 +240,8 @@ function Notificaciones() {
   const [serverState, setServerState] = useState<{ scope: string; reachable: boolean }>({ scope: "", reachable: false });
   const [syncingScope, setSyncingScope] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine);
-  const syncPromiseRef = useRef<Promise<void> | null>(null);
+  const syncPromisesRef = useRef(new Map<string, Promise<void>>());
+  const activeIdentityRef = useRef(identity);
 
   const activeCache = identity && cacheLoadedScope === identity.scope ? cache : emptyBundle;
   const notifications = activeCache.notifications ?? [];
@@ -260,8 +261,10 @@ function Notificaciones() {
   const previousConnectivityRef = useRef({ online: false, reachable: false });
   const isSyncing = syncingScope === identity?.scope;
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
-  const pendingCount = operations.length;
-  const pendingDeletionCount = operations.filter((operation) => operation.kind === "delete").length;
+  const pendingCount = operations.filter((operation) => operation.status === "pending").length;
+  const pendingDeletionCount = operations.filter(
+    (operation) => operation.kind === "delete" && operation.status === "pending",
+  ).length;
   const hasRejectedOperations = operations.some((operation) => operation.status === "rejected");
   const statusLabel = !isConnectionAvailable
     ? "Sin conexión"
@@ -283,18 +286,25 @@ function Notificaciones() {
     ]);
     const targetIdentity = getNotificationCacheIdentity(targetUserId);
     const titles = Object.fromEntries((bundle.notifications ?? []).map((notification) => [notification.id, notification.title]));
-    setCache({ ...bundle, notifications: items });
-    setCacheLoadedScope(targetIdentity.scope);
-    setNotificationTitles((current) => ({
-      scope: targetIdentity.scope,
-      titles: { ...(current.scope === targetIdentity.scope ? current.titles : {}), ...titles },
-    }));
+    if (activeIdentityRef.current?.scope === targetIdentity.scope) {
+      setCache({ ...bundle, notifications: items });
+      setCacheLoadedScope(targetIdentity.scope);
+      setNotificationTitles((current) => ({
+        scope: targetIdentity.scope,
+        titles: { ...(current.scope === targetIdentity.scope ? current.titles : {}), ...titles },
+      }));
+    }
     return bundle;
   }, []);
 
+  useLayoutEffect(() => {
+    activeIdentityRef.current = identity;
+  }, [identity]);
+
   const syncAndRefresh = useCallback((): Promise<void> => {
     if (!identity || !window.navigator.onLine) return Promise.resolve();
-    if (syncPromiseRef.current) return syncPromiseRef.current;
+    const active = syncPromisesRef.current.get(identity.scope);
+    if (active) return active;
     const target = identity;
     setSyncingScope(target.scope);
     const task = (async () => {
@@ -314,11 +324,11 @@ function Notificaciones() {
           message: error instanceof Error ? error.message : "No se pudo sincronizar Notificaciones.",
         });
       } finally {
-        syncPromiseRef.current = null;
+        syncPromisesRef.current.delete(target.scope);
         setSyncingScope((scope) => scope === target.scope ? null : scope);
       }
     })();
-    syncPromiseRef.current = task;
+    syncPromisesRef.current.set(target.scope, task);
     return task;
   }, [identity, refreshLocalCache]);
 

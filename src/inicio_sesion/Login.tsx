@@ -6,7 +6,17 @@ import { useAuth } from "../auth/useAuth";
 /* Link = enlace.
 Permite navegar entre pantallas sin recargar la aplicación. */
 
-function Login() {
+interface LoginProps {
+  suspensionReauthentication?: boolean;
+  onCancelSuspensionReauthentication?: () => void;
+  onSuspensionReauthenticationComplete?: () => void;
+}
+
+function Login({
+  suspensionReauthentication = false,
+  onCancelSuspensionReauthentication,
+  onSuspensionReauthenticationComplete,
+}: LoginProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { refreshAuth } = useAuth();
@@ -56,7 +66,8 @@ function Login() {
 
       const authResult = await refreshAuth();
       if (authResult.status === "offline") {
-        setError("Se inició la sesión, pero no podemos comprobar tu acceso sin conexión. Se conservará y volveremos a verificarlo cuando regrese Internet.");
+        if (suspensionReauthentication) onSuspensionReauthenticationComplete?.();
+        setError("Se conserva el acceso sin conexión previamente validado. Se volverá a comprobar cuando regrese Internet.");
         return;
       }
       if (authResult.status !== "authenticated" || !authResult.profile) {
@@ -64,6 +75,7 @@ function Login() {
         return;
       }
 
+      if (suspensionReauthentication) onSuspensionReauthenticationComplete?.();
       navigate("/principal", { replace: true });
     } catch {
       setError("Ocurrió un error al iniciar sesión. Inténtalo nuevamente.");
@@ -92,9 +104,22 @@ function Login() {
             {isSubmitting ? "Iniciando sesión..." : "Iniciar sesión"}
           </button>
         </form>
-        <Link to="/recuperar-password">¿Olvidaste la contraseña?</Link>
-        <p className="registro-prompt">¿Aún no tienes una cuenta?</p>
-        <Link to="/registro">Registrar usuario</Link>
+        {suspensionReauthentication ? (
+          <button
+            type="button"
+            className="login-link-button"
+            onClick={onCancelSuspensionReauthentication}
+            disabled={isSubmitting}
+          >
+            Volver a Cuenta suspendida
+          </button>
+        ) : (
+          <>
+            <Link to="/recuperar-password">¿Olvidaste la contraseña?</Link>
+            <p className="registro-prompt">¿Aún no tienes una cuenta?</p>
+            <Link to="/registro">Registrar usuario</Link>
+          </>
+        )}
       </div>
     </div>
   );

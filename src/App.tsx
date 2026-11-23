@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 // Routes = conjunto de rutas.
 // Route = una ruta individual.
@@ -43,6 +44,24 @@ function AuthStatusScreen({ title, message, action }: { title: string; message: 
           <p>{message}</p>
         </div>
         {action}
+      </section>
+    </main>
+  );
+}
+
+function SuspendedAccountScreen({ error, onReauthenticate }: { error: string | null; onReauthenticate: () => void }) {
+  return (
+    <main className="permission-page">
+      <section className="permission-modal" role="alert">
+        <div className="permission-icon" aria-hidden="true">🔒</div>
+        <div>
+          <h1>Cuenta suspendida.</h1>
+          <p>Tu cuenta ha sido suspendida por un administrador. Comunícate con el administrador para obtener más información</p>
+          {error && <p role="status">{error}</p>}
+        </div>
+        <button type="button" onClick={onReauthenticate}>
+          Iniciar sesión para comprobar la reactivación
+        </button>
       </section>
     </main>
   );
@@ -151,10 +170,49 @@ function AuthenticatedRoute({ children, administratorOnly = false }: { children:
 }
 
 function App() {
+  const { status, error, user } = useAuth();
+  const [suspensionFlow, setSuspensionFlow] = useState<{
+    userId: string | null;
+    screen: "login" | "suspended";
+  } | null>(null);
+  const keepReauthenticationForm = suspensionFlow?.screen === "login" && (
+    status === "loading"
+    || status === "error"
+    || status === "unauthenticated"
+    || (status === "suspended" && user?.id === suspensionFlow.userId)
+  );
+  const showSuspendedScreen = (status === "suspended" && !keepReauthenticationForm)
+    || (
+      suspensionFlow?.screen === "suspended"
+      && (status === "error" || status === "unauthenticated")
+      && user?.id !== suspensionFlow.userId
+    );
+  const displayedSuspendedUserId = status === "suspended"
+    ? user?.id ?? null
+    : suspensionFlow?.userId ?? null;
+
   return (
     <>
     <EventReminderManager />
-    <Routes>
+    {showSuspendedScreen
+      ? <SuspendedAccountScreen
+          error={status === "suspended" ? error : null}
+          onReauthenticate={() => setSuspensionFlow({
+            userId: displayedSuspendedUserId,
+            screen: "login",
+          })}
+        />
+      : keepReauthenticationForm
+        ? <Login
+            suspensionReauthentication
+            onCancelSuspensionReauthentication={() => {
+              setSuspensionFlow((current) => current
+                ? { ...current, screen: "suspended" }
+                : null);
+            }}
+            onSuspensionReauthenticationComplete={() => setSuspensionFlow(null)}
+          />
+        : <Routes>
       {/* Route = ruta.
           path = camino o dirección.
           "/" representa la pantalla principal.
@@ -186,7 +244,7 @@ function App() {
 
       <Route path="/usuarios" element={<AuthenticatedRoute administratorOnly><Usuarios /></AuthenticatedRoute>} />
       <Route path="/configuracion" element={<AuthenticatedRoute><Configuracion /></AuthenticatedRoute>} />
-    </Routes>
+        </Routes>}
     </>
   );
 }

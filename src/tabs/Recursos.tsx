@@ -106,6 +106,10 @@ function Recursos() {
     && lastSuccessfulSyncState.scope === identity?.scope
     ? lastSuccessfulSyncState.at
     : activeCache?.snapshotSavedAt ?? null;
+  const cachedPermission = activeCache?.canManageResources ?? null;
+  const currentPermission = permissionState?.scope === identity?.scope
+    ? permissionState
+    : null;
   const resources = useMemo(
     () => activeCache
       ? mergeResourcesWithOutbox(activeCache.snapshot ?? [], activeCache.operations)
@@ -116,10 +120,6 @@ function Recursos() {
     resourceCount: summary.resourceCount + 1,
     totalUnits: summary.totalUnits + resource.quantity,
   }), { resourceCount: 0, totalUnits: 0 });
-  const cachedPermission = activeCache?.canManageResources ?? null;
-  const currentPermission = permissionState?.scope === identity?.scope
-    ? permissionState
-    : null;
   const isCheckingPermission = checkingPermissionScope === identity?.scope;
   const hasPermissionResult = currentPermission !== null || cachedPermission !== null;
   const isLoadingPermission = !isAdministrator
@@ -309,7 +309,7 @@ function Recursos() {
 
       const result = await synchronizeResources(identity);
       if (!active) return;
-      if (result.serverReachable && !result.error) {
+      if (result.dataReadConfirmed) {
         setLastSuccessfulSyncState({
           scope: identity.scope,
           at: new Date().toISOString(),
@@ -455,7 +455,7 @@ function Recursos() {
     setSyncingScope(target.scope);
     try {
       const result = await synchronizeResources(target);
-      if (result.serverReachable && !result.error) {
+      if (result.dataReadConfirmed) {
         setLastSuccessfulSyncState({
           scope: target.scope,
           at: new Date().toISOString(),

@@ -403,17 +403,25 @@ export function subscribeToNotificationChanges(
   onChange: () => void,
   onStatus: (status: "SUBSCRIBED" | "TIMED_OUT" | "CLOSED" | "CHANNEL_ERROR") => void,
 ): RealtimeChannel {
+  const handleChange = () => {
+    onChange();
+    notifyChanged();
+  };
+
   return supabase
     .channel(`notifications:${userId}:${++subscriptionSequence}`)
     .on("postgres_changes", {
-      event: "*",
+      event: "INSERT",
       schema: "public",
       table: "notification_change_signals",
       filter: `recipient_id=eq.${userId}`,
-    }, () => {
-      onChange();
-      notifyChanged();
-    })
+    }, handleChange)
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "notification_change_signals",
+      filter: `recipient_id=eq.${userId}`,
+    }, handleChange)
     .subscribe((status) => {
       if (status === "SUBSCRIBED" || status === "TIMED_OUT" || status === "CLOSED" || status === "CHANNEL_ERROR") {
         onStatus(status);
@@ -705,7 +713,6 @@ export async function deleteNotificationsForUser(userId: string, notificationIds
 
 async function runNotificationSync(identity: NotificationCacheIdentity): Promise<NotificationSyncResult> {
   if (!window.navigator.onLine) return { serverReachable: false, error: "Sin conexión." };
-  const previousCache = await readNotificationCache(identity);
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || sessionData.session?.user.id !== identity.userId) {
     return { serverReachable: false, error: "La sesión no corresponde a las notificaciones guardadas." };
@@ -715,7 +722,7 @@ async function runNotificationSync(identity: NotificationCacheIdentity): Promise
     return { serverReachable: false, error: error?.message ?? "No se pudo consultar la lista de Notificaciones." };
   }
   const notifications = data.map((row: unknown) => parseNotification(row, identity.userId));
-  await saveNotificationSnapshot(identity, notifications, previousCache.savedAt);
+  await saveNotificationSnapshot(identity, notifications, new Date().toISOString());
   notifyChanged();
   const { operations } = await readNotificationCache(identity);
   for (const operation of operations) {
@@ -770,7 +777,7 @@ async function runNotificationSync(identity: NotificationCacheIdentity): Promise
   await saveNotificationSnapshot(
     identity,
     refreshedNotifications,
-    remaining.length === 0 ? new Date().toISOString() : previousCache.savedAt,
+    new Date().toISOString(),
   );
   notifyChanged();
   return remaining.length
