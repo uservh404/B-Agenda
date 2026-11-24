@@ -23,7 +23,12 @@ import {
   type AnnouncementSyncResult,
 } from "../services/announcement-offline-sync";
 import { hasAdministrativePermission } from "../auth/auth-context";
-import { markAnnouncementsAsSeen } from "../auth/announcement-reads";
+import {
+  getReadAnnouncementIds,
+  isAnnouncementUnread,
+  markAllAnnouncementsAsRead,
+  markAnnouncementVersionAsRead,
+} from "../auth/announcement-reads";
 import "./S-anuncios.css";
 
 const emptyBundle: AnnouncementCacheBundle = {
@@ -81,7 +86,7 @@ function Anuncios() {
   const [deleteDialogError, setDeleteDialogError] = useState("");
   const [announcementToView, setAnnouncementToView] = useState<Announcement | null>(null);
   const [formData, setFormData] = useState({ title: "", content: "", category: "" });
-
+  const [, setReadAnnouncementIds] = useState<string[]>([]);
   const activeCache = identity && cacheLoadedScope === identity.scope ? cache : emptyBundle;
   const cachedAnnouncements = activeCache.announcements ?? emptyAnnouncements;
   const operations = activeCache.operations;
@@ -89,6 +94,16 @@ function Anuncios() {
     () => mergeAnnouncementsWithOutbox(cachedAnnouncements, operations),
     [cachedAnnouncements, operations],
   );
+  const unreadAnnouncements = identity
+    ? announcements.filter((announcement) =>
+      isAnnouncementUnread(
+        identity.userId,
+        announcement.id,
+        announcement.createdAt,
+        announcement.version,
+      ),
+    )
+    : [];
   const displayedSyncError = syncErrorState && syncErrorState.scope === identity?.scope
     ? syncErrorState.message
     : "";
@@ -107,10 +122,14 @@ function Anuncios() {
       ? activeCache.canPublishAnnouncements
       : status !== "offline"
         && hasAdministrativePermission(profile, "can_publish_announcements"));
+  const canManageAnnouncement = (announcement: Announcement) =>
+    canPublish && (isAdministrator || announcement.authorId === identity?.userId);
   const selectionMatchesIdentity = !!identity && selection.scope === identity.scope;
   const selectedIds = canPublish && selectionMatchesIdentity ? selection.ids : [];
   const selectionMode = canPublish && selectionMatchesIdentity && selection.active;
-  const selectedAnnouncements = announcements.filter((announcement) => selectedIds.includes(announcement.id));
+  const selectedAnnouncements = announcements.filter((announcement) =>
+    selectedIds.includes(announcement.id) && canManageAnnouncement(announcement),
+  );
   const pendingCount = operations.filter((operation) => operation.status === "pending").length;
   const pendingDeletionCount = operations.filter(
     (operation) => operation.kind === "delete" && operation.status === "pending",
@@ -146,11 +165,7 @@ function Anuncios() {
     const next = await readAnnouncementCache(target);
     setCache(next);
     setCacheLoadedScope(target.scope);
-    const latestCreatedAt = next.announcements
-      ?.map((announcement) => announcement.createdAt)
-      .sort()
-      .at(-1) ?? null;
-    markAnnouncementsAsSeen(target.userId, latestCreatedAt);
+    setReadAnnouncementIds(getReadAnnouncementIds(target.userId));
     return next;
   }, []);
 
@@ -222,6 +237,7 @@ function Anuncios() {
       if (!active) return;
       setCache(next);
       setCacheLoadedScope(identity.scope);
+      setReadAnnouncementIds(getReadAnnouncementIds(identity.userId));
     }).catch((error: unknown) => {
       if (!active) return;
       setSyncErrorState({
@@ -307,6 +323,17 @@ function Anuncios() {
       });
       return;
     }
+    if (
+      editingAnnouncement
+      && !isAdministrator
+      && editingAnnouncement.authorId !== identity.userId
+    ) {
+      setPermissionErrorState({
+        scope: identity.scope,
+        message: "Solo puedes modificar anuncios que tú creaste.",
+      });
+      return;
+    }
     const title = formData.title.trim();
     const content = formData.content.trim();
     if (!title || !content) return;
@@ -328,7 +355,16 @@ function Anuncios() {
       resetForm();
       setFormOpen(false);
       setPermissionErrorState({ scope: identity.scope, message: "" });
-      if (window.navigator.onLine) await synchronizeAndRefresh(identity);
+      if (window.navigator.onLine) {
+        const syncResult = await synchronizeAndRefresh(identity);
+        if (syncResult.serverReachable && !syncResult.error) {
+          const latestCache = await readAnnouncementCache(identity);
+          const latest = latestCache.announcements?.find((announcement) => announcement.id === itemId);
+          if (latest) {
+            setReadAnnouncementIds(getReadAnnouncementIds(identity.userId));
+          }
+        }
+      }
     } catch (error) {
       setSyncErrorState({
         scope: identity?.scope ?? "",
@@ -351,7 +387,9 @@ function Anuncios() {
       setDeleteDialogError("No se pudo confirmar el permiso para eliminar anuncios.");
       return;
     }
-    const selected = announcements.filter((announcement) => deleteDialog.announcementIds.includes(announcement.id));
+    const selected = announcements.filter((announcement) =>
+      deleteDialog.announcementIds.includes(announcement.id) && canManageAnnouncement(announcement),
+    );
     if (selected.length === 0) {
       setDeleteDialog(null);
       setDeleteDialogError("");
@@ -428,8 +466,9 @@ function Anuncios() {
     const query = searchText.toLowerCase().trim();
     return !query || `${announcement.title} ${announcement.content} ${announcement.category}`.toLowerCase().includes(query);
   });
-  const allVisibleSelected = filteredAnnouncements.length > 0
-    && filteredAnnouncements.every((announcement) => selectedIds.includes(announcement.id));
+  const manageableFilteredAnnouncements = filteredAnnouncements.filter(canManageAnnouncement);
+  const allVisibleSelected = manageableFilteredAnnouncements.length > 0
+    && manageableFilteredAnnouncements.every((announcement) => selectedIds.includes(announcement.id));
   const openMultipleDeleteConfirmation = () => {
     if (selectedAnnouncements.length === 0) return;
     setDeleteDialogError("");
@@ -446,13 +485,17 @@ function Anuncios() {
     status: operation.status === "pending" ? "Sincronización pendiente" : operation.status === "conflict" ? "Conflicto" : "Rechazado",
     error: operation.lastError,
   }));
-  const permissionNotice = status === "authenticated" && !canPublish
-    ? "No tienes permiso para publicar anuncios."
-    : status === "offline" && !canPublish
+  const permissionNotice = status === "offline" && !canPublish && isConnectionAvailable
       ? "No se pudo confirmar tu permiso sin conexión. Puedes consultar los anuncios guardados."
       : null;
+  const normalDisconnectWarnings = new Set([
+    "No se pudo confirmar el estado ni la sesión de la cuenta. Los cambios quedaron guardados.",
+    "Sin conexión.",
+  ]);
   const warnings = [...new Set([
-    displayedSyncError,
+    isConnectionAvailable || !normalDisconnectWarnings.has(displayedSyncError)
+      ? displayedSyncError
+      : "",
     displayedPermissionError,
     displayedRealtimeWarning,
     permissionNotice ?? "",
@@ -513,6 +556,25 @@ function Anuncios() {
             <div><h2>Publicaciones recientes</h2><p>{canPublish ? "Comparte novedades con los usuarios de la biblioteca." : "Consulta las novedades publicadas por la biblioteca."}</p></div>
             <div className="announcement-list-tools">
               <input type="search" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Buscar anuncios" aria-label="Buscar anuncios" />
+              {identity && unreadAnnouncements.length > 0 && (
+                <button
+                  type="button"
+                  className="announcement-selection-toggle-button"
+                  onClick={() => {
+                    const versions = new Map(
+                      announcements.map((announcement) => [announcement.id, announcement.version]),
+                    );
+                    markAllAnnouncementsAsRead(
+                      identity.userId,
+                      announcements.map((announcement) => announcement.id),
+                      versions,
+                    );
+                    setReadAnnouncementIds(getReadAnnouncementIds(identity.userId));
+                  }}
+                >
+                  Marcar todos como leídos
+                </button>
+              )}
               {canPublish && (
                 <>
                   <button
@@ -547,11 +609,11 @@ function Anuncios() {
             </div>
           </div>
 
-          {canPublish && selectionMode && announcements.length > 0 && (
+          {canPublish && selectionMode && manageableFilteredAnnouncements.length > 0 && (
             <div className="announcement-selection-bar">
               <label><input type="checkbox" checked={allVisibleSelected} onChange={() => updateSelectedIds((ids) => allVisibleSelected
-                ? ids.filter((id) => !filteredAnnouncements.some((announcement) => announcement.id === id))
-                : [...new Set([...ids, ...filteredAnnouncements.map((announcement) => announcement.id)])])} /> Seleccionar todos</label>
+                ? ids.filter((id) => !manageableFilteredAnnouncements.some((announcement) => announcement.id === id))
+                : [...new Set([...ids, ...manageableFilteredAnnouncements.map((announcement) => announcement.id)])])} /> Seleccionar todos</label>
               {selectedAnnouncements.length > 0 && <span>{selectedAnnouncements.length} seleccionado{selectedAnnouncements.length > 1 ? "s" : ""}</span>}
             </div>
           )}
@@ -571,9 +633,25 @@ function Anuncios() {
                 return (
                   <article className="announcement-card" key={announcement.id}>
                     <div className="announcement-card-top">
-                      {canPublish && selectionMode && <input className="announcement-checkbox" type="checkbox" checked={selectedIds.includes(announcement.id)} onChange={() => updateSelectedIds((ids) => ids.includes(announcement.id) ? ids.filter((id) => id !== announcement.id) : [...ids, announcement.id])} aria-label={`Seleccionar ${announcement.title}`} />}
-                      <time>Publicado el {new Date(announcement.createdAt).toLocaleString("es-MX")}</time>
+                      {canManageAnnouncement(announcement) && selectionMode && <input className="announcement-checkbox" type="checkbox" checked={selectedIds.includes(announcement.id)} onChange={() => updateSelectedIds((ids) => ids.includes(announcement.id) ? ids.filter((id) => id !== announcement.id) : [...ids, announcement.id])} aria-label={`Seleccionar ${announcement.title}`} />}
+                      <div className="announcement-card-statuses">
+                        <span className={`announcement-version-status ${announcement.version > 1 ? "announcement-status-modified" : "announcement-status-created"}`}>
+                          {announcement.version > 1 ? "Modificado" : "Creado"}
+                        </span>
+                        {identity && isAnnouncementUnread(
+                          identity.userId,
+                          announcement.id,
+                          announcement.createdAt,
+                          announcement.version,
+                        ) ? (
+                          <span className="announcement-read-status notification-status status-unread">Sin leer</span>
+                        ) : (
+                          <span className="announcement-read-status notification-status status-read">Leído</span>
+                        )}
+                        <time>Publicado el {new Date(announcement.createdAt).toLocaleString("es-MX")}</time>
+                      </div>
                     </div>
+                    <div>Publicado por: {announcement.authorName.trim() || "Autor no disponible"}</div>
                     <span className="announcement-field-label">Título del anuncio</span>
                     <h3 title={announcement.title}>{announcement.title}</h3>
                     <p>{announcement.content}</p>
@@ -586,8 +664,21 @@ function Anuncios() {
                       <button type="button" className="announcement-summary-button" onClick={() => setAnnouncementToView(announcement)} aria-label={`Ver información de ${announcement.title}`}>
                         <Eye size={16} aria-hidden="true" /><span>Ver información</span>
                       </button>
-                      {canPublish && <button type="button" className="announcement-edit-button" onClick={() => openEditForm(announcement)} aria-label={`Modificar ${announcement.title}`}><Pencil size={15} aria-hidden="true" /><span>Modificar</span></button>}
-                      {canPublish && (
+                      {identity
+                        && isAnnouncementUnread(identity.userId, announcement.id, announcement.createdAt, announcement.version) && (
+                        <button
+                          type="button"
+                          className="announcement-selection-toggle-button"
+                          onClick={() => {
+                            markAnnouncementVersionAsRead(identity.userId, announcement.id, announcement.version);
+                            setReadAnnouncementIds(getReadAnnouncementIds(identity.userId));
+                          }}
+                        >
+                          Marcar como leído
+                        </button>
+                      )}
+                      {canManageAnnouncement(announcement) && <button type="button" className="announcement-edit-button" onClick={() => openEditForm(announcement)} aria-label={`Modificar ${announcement.title}`}><Pencil size={15} aria-hidden="true" /><span>Modificar</span></button>}
+                      {canManageAnnouncement(announcement) && (
                         <button
                           type="button"
                           className="announcement-card-delete-button"

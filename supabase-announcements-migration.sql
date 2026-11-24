@@ -702,6 +702,8 @@ BEGIN
      FOR UPDATE;
     IF NOT FOUND THEN
       v_response := jsonb_build_object('status', 'rejected', 'code', 'announcement_not_active');
+    ELSIF v_announcement.author_id IS DISTINCT FROM v_actor THEN
+      v_response := jsonb_build_object('status', 'rejected', 'code', 'not_authorized');
     ELSIF v_announcement.version <> p_expected_version THEN
       v_response := jsonb_build_object('status', 'conflict', 'code', 'version_conflict');
     ELSIF p_kind = 'delete' THEN

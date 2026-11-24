@@ -15,6 +15,37 @@
   justify-content: space-between;
   gap: 18px;
 }
+.announcement-card-statuses {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+  margin-left: auto;
+}
+.announcement-version-status,
+.announcement-read-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.announcement-status-created {
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(59, 130, 246, 0.16);
+  color: #bfdbfe;
+}
+.announcement-status-modified {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fde68a;
+}
 
 .announcement-header-actions { display: flex; align-items: center; gap: 10px; }
 .announcement-header-actions .sync-panel { right: 0; left: auto; }
@@ -114,6 +145,7 @@
   .announcements-header, .announcements-toolbar { align-items: flex-start; flex-direction: column; }
   .announcement-header-actions { width: 100%; flex-wrap: wrap; }
   .announcements-toolbar input { max-width: none; }
+  .announcement-card-statuses { justify-content: flex-start; width: 100%; }
 }
 .anuncios-page {
   display: flex;

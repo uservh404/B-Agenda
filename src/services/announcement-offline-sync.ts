@@ -3,10 +3,12 @@ import {
   isAccountSuspensionConfirmedInSession,
   notifyConfirmedAccountSuspension,
 } from "../auth/account-suspension-response";
+import { markAnnouncementVersionAsRead } from "../auth/announcement-reads";
 import {
   checkOfflineSyncAccount,
   checkOfflineSyncAuthorization,
 } from "./offline-sync-authorization";
+import { supabase } from "../lib/supabaseClient";
 import {
   applyAnnouncementOperation,
   canPublishAnnouncements,
@@ -14,6 +16,7 @@ import {
 } from "./announcements";
 import {
   completeAnnouncementOperation,
+  getAnnouncementCacheIdentity,
   markAnnouncementOperationAttempted,
   readAnnouncementCache,
   requeueRejectedAnnouncementOperation,
@@ -323,6 +326,38 @@ async function runSync(identity: AnnouncementCacheIdentity): Promise<Announcemen
                 ? `Supabase confirmó el cambio, pero no se pudo actualizar la cola local: ${error.message}. Se conservará el mismo identificador para evitar duplicados.`
                 : "Supabase confirmó el cambio, pero no se pudo actualizar la cola local. Se conservará el mismo identificador para evitar duplicados.",
             };
+          }
+          if (attemptedOperation.kind === "create" || attemptedOperation.kind === "update") {
+            try {
+              const activeIdentity = getAnnouncementCacheIdentity(attemptedOperation.userId);
+              const { data, error } = await supabase.auth.getSession();
+              const identityMatches = !error
+                && data.session?.user.id === attemptedOperation.userId
+                && attemptedOperation.userId === identity.userId
+                && attemptedOperation.projectId === identity.projectId
+                && attemptedOperation.scope === identity.scope
+                && activeIdentity.projectId === identity.projectId
+                && activeIdentity.scope === identity.scope
+                && result.announcementId === attemptedOperation.announcementId
+                && Number.isSafeInteger(result.version)
+                && result.version >= 1;
+              if (identityMatches) {
+                markAnnouncementVersionAsRead(
+                  attemptedOperation.userId,
+                  result.announcementId,
+                  result.version,
+                );
+              } else {
+                console.warn(
+                  "No se marcó como leída la versión confirmada porque la sesión o el alcance del anuncio cambiaron.",
+                );
+              }
+            } catch (error) {
+              console.error(
+                "La publicación quedó confirmada, pero no se pudo registrar como leída para su autor.",
+                error,
+              );
+            }
           }
           if (rebased) {
             const successorIndex = operations.findIndex((queued) => queued.operationId === rebased.operationId);

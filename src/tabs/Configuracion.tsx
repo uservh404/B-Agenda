@@ -914,7 +914,7 @@ function Configuracion() {
             <div className="theme-options" role="group" aria-label="Seleccionar tema">
               {appThemes.map((theme) => (
                 <button
-                  className={`theme-option ${selectedTheme === theme.id ? "selected" : ""}`}
+                  className={`theme-option ${selectedTheme === theme.id ? "selected" : ""} ${theme.id === "salvia" ? "theme-option-salvia" : ""}`}
                   type="button"
                   key={theme.id}
                   aria-pressed={selectedTheme === theme.id}
