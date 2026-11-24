@@ -37,6 +37,14 @@
     "resources": [
       "resources/agenda-reminder.wav"
     ],
+    "windows": {
+      "nsis": {
+        "languages": [
+          "Spanish"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

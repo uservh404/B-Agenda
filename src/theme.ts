@@ -1,7 +1,7 @@
 export type AppTheme = "azul" | "salvia" | "grafito";
 
 export const appThemes: { id: AppTheme; name: string; description: string }[] = [
-  { id: "azul", name: "Azul actual", description: "Azul sereno para el uso diario." },
+  { id: "azul", name: "Azul", description: "Azul sereno para el uso diario." },
   { id: "grafito", name: "Grafito", description: "Neutro y descansado." },
   { id: "salvia", name: "Salvia", description: "Verde suave y natural." },
 ];
