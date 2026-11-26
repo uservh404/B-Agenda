@@ -194,7 +194,7 @@ function VerificarCodigo() {
   return (
     <div className="contenedor">
       <div className="login">
-        <h1>Biblioteca digital</h1>
+        <h1>AgendaJuventud</h1>
         <p>Verificar código</p>
         <p className="texto-ayuda">Revisa tu correo e introduce el código de 6 dígitos que te enviamos.</p>
         <p className="texto-ayuda">Correo: {correo}</p>

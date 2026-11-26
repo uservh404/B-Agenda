@@ -170,7 +170,7 @@ function VerificarRegistro() {
   return (
     <div className="contenedor">
       <div className="login">
-        <h1>Biblioteca digital</h1>
+        <h1>AgendaJuventud</h1>
         <p>Confirma tu registro</p>
         <p className="texto-ayuda">
           Ingresa el código de 6 dígitos para confirmar la creación de tu cuenta.

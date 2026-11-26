@@ -95,7 +95,7 @@ function NuevaPassword() {
     return (
       <div className="contenedor">
         <div className="login">
-          <h1>Biblioteca digital</h1>
+          <h1>AgendaJuventud</h1>
           <p>Nueva contraseña</p>
           {error && <p className="login-mensaje login-error" role="alert">{error}</p>}
           <Link to="/recuperar-password">Solicitar un nuevo código</Link>
@@ -108,12 +108,12 @@ function NuevaPassword() {
   return (
     <div className="contenedor">
       <div className="login">
-        <h1>Biblioteca digital</h1>
+        <h1>AgendaJuventud</h1>
         <p>Nueva contraseña</p>
         <p className="texto-ayuda">
           {isChecking
             ? "Comprobando la sesión de recuperación..."
-            : "Crea una contraseña nueva para volver a entrar a tu biblioteca digital."}
+            : "Crea una contraseña nueva para volver a entrar a AgendaJuventud."}
         </p>
         {error && <p className="login-mensaje login-error" role="alert">{error}</p>}
         {success && <p className="login-mensaje login-exito" role="status">{success}</p>}

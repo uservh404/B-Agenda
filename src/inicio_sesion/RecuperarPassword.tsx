@@ -51,7 +51,7 @@ function RecuperarPassword() {
   return (
     <div className="contenedor">
       <div className="login">
-        <h1>Biblioteca digital</h1>
+        <h1>AgendaJuventud</h1>
         <p>Recuperar contraseña</p>
         <p className="texto-ayuda">No te preocupes. Escribe tu correo y te enviaremos instrucciones para recuperar el acceso.</p>
 

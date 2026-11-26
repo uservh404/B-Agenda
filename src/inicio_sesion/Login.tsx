@@ -87,7 +87,7 @@ function Login({
   return (
     <div className="contenedor">
       <div className="login">
-        <h1>Biblioteca digital</h1>
+        <h1>AgendaJuventud</h1>
         <p>Inicio de sesión</p>
         {authMessage && <p className="login-mensaje login-exito" role="status">{authMessage}</p>}
 
